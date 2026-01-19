@@ -333,6 +333,9 @@ MainWindow::MainWindow(QWidget *parent)
 
     model = new QStandardItemModel(this);
 
+    elf = new FileBin_ELF();
+    dwarf = new FileBin_DWARF();
+
     setAcceptDrops(true);
 
     ui->treeView->setModel(model);
@@ -438,20 +441,19 @@ void MainWindow::loadElf(std::string file_name)
 {
     auto start = std::chrono::high_resolution_clock::now();
 
-    delete elf;
-    delete dwarf;
-    elf = nullptr;
-    dwarf = nullptr;
+    //delete elf;
+    //delete dwarf;
+    //elf = nullptr;
+    //dwarf = nullptr;
 
     model->clear();
     modelSymbol->clear();
 
+    //ui->treeView->setModel(new QStandardItemModel());
+    //ui->treeView_2->setModel(new QStandardItemModel());
+
     model->setHorizontalHeaderLabels({"Name", "Value"});
     modelSymbol->setHorizontalHeaderLabels({"Name", "Value", "Size", "Type"});
-
-
-    elf = new FileBin_ELF();
-    dwarf = new FileBin_DWARF();
 
     elf->Parse(file_name);
 
@@ -466,7 +468,15 @@ void MainWindow::loadElf(std::string file_name)
             elf->GetStrOffset()
             );
 
+
+
         TreeElementType* rootNode = dwarf->root;
+
+       // if (!rootNode)
+        {
+        //    return;
+        }
+
         QStandardItem* rootItem = model->invisibleRootItem();
 
         ui->treeView->setUpdatesEnabled(false);
@@ -474,6 +484,12 @@ void MainWindow::loadElf(std::string file_name)
         ui->treeView->setUpdatesEnabled(true);
 
         FileBin_VarInfoType* rootNodeSymbol = dwarf->Symbol;
+
+        //if (!rootNodeSymbol)
+        {
+        //    return;
+        }
+
         QStandardItem* rootItemSymbol = modelSymbol->invisibleRootItem();
 
         ui->treeView_2->setUpdatesEnabled(false);
@@ -510,7 +526,6 @@ void MainWindow::loadElf(std::string file_name)
                         }
                     }
                 });
-
         // Lazy loading for symbol tree
         connect(ui->treeView_2, &QTreeView::expanded, this,
                 [this](const QModelIndex& index)
@@ -537,6 +552,7 @@ void MainWindow::loadElf(std::string file_name)
                     }
                 });
     }
+
 
     auto end = std::chrono::high_resolution_clock::now();
     uint32_t duration_us =

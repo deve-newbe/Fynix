@@ -139,38 +139,44 @@ typedef struct TreeElementType
 
 class FileBin_DWARF
 {
-    private:
+private:
 
-        std::unordered_map<uint32_t, FileBin_DWARF_CompileUnitDataType> AbbrevOffsetCache;
-        std::vector<FileBin_DWARF_CompileUnitType*> CompilationUnit; /* Array of Compilation Units (DWARF top-most level DIE) extracted from abbrev */
-        const uint8_t* fileBase;
+    std::unordered_map<uint32_t, FileBin_DWARF_CompileUnitDataType> AbbrevOffsetCache;
+    std::vector<FileBin_DWARF_CompileUnitType*> CompilationUnit; /* Array of Compilation Units (DWARF top-most level DIE) extracted from abbrev */
+    const uint8_t* fileBase;
 
-        inline uint64_t FileBin_DWARF_ReadULEB128(const uint8_t*& ptr);
-        inline int64_t FileBin_DWARF_ReadSLEB128(const uint8_t*& ptr);
+    inline uint64_t FileBin_DWARF_ReadULEB128(const uint8_t*& ptr);
+    inline int64_t FileBin_DWARF_ReadSLEB128(const uint8_t*& ptr);
 
-    public:
 
-        FileBin_DWARF_VarInfoType* Symbol;
-        uint32_t InfoOffset;
-        uint32_t StrOffset;
-        TreeElementType *root; /* data extracred from .debug_info thanks to CompilationUnit */
+    void Reset();
+    void DeleteTree(TreeElementType* node);
+    void FreeTree(TreeElementType* node);
+    void FreeSymTree(FileBin_DWARF_VarInfoType* node);
 
-        FileBin_DWARF();
+public:
 
-        uint8_t Parse(std::string file_name, uint32_t Offset, uint32_t Len, uint32_t InfoOffset, uint32_t InfoLen, uint32_t StrOffset);
+    FileBin_DWARF_VarInfoType* Symbol;
+    uint32_t InfoOffset;
+    uint32_t StrOffset;
+    TreeElementType *root; /* data extracred from .debug_info thanks to CompilationUnit */
 
-        void ParseAllAbbrvSectionHeader(const uint8_t* fileData, uint32_t AbbrevOffset, uint32_t InfoOffset, uint32_t InfoLen);
-        FileBin_DWARF_CompileUnitDataType* ParseAbbrevOffset(const uint8_t* abbrevPtr);
-        TreeElementType* ParseDIE(const uint8_t*& ptr, const uint8_t* fileBase, uint32_t cuOffset, uint32_t infoLen, FileBin_DWARF_CompileUnitType* cu,TreeElementType* parent);
-        std::vector<uint8_t> ReadAttributeValue(const uint8_t*& ptr, uint32_t form, uint8_t addrSize, const uint8_t* fileBase);
+    FileBin_DWARF();
 
-        uint8_t SymbolResolveType(TreeElementType* node, FileBin_DWARF_VarInfoType* parent);
-        void SymbolTraverse(TreeElementType* node, FileBin_DWARF_VarInfoType *parent);
+    uint8_t Parse(std::string file_name, uint32_t Offset, uint32_t Len, uint32_t InfoOffset, uint32_t InfoLen, uint32_t StrOffset);
 
-        void PrintAllAbbrevInfo() const;
-        static std::string FileBin_DWARF_DW_AT_ToString(uint16_t StrCode);
-        static std::string FileBin_DWARF_DW_FORM_ToString(uint16_t StrCode);
-        static std::string FileBin_DWARF_DW_TAG_ToString(uint16_t StrCode);
+    void ParseAllAbbrvSectionHeader(const uint8_t* fileData, uint32_t AbbrevOffset, uint32_t InfoOffset, uint32_t InfoLen);
+    FileBin_DWARF_CompileUnitDataType* ParseAbbrevOffset(const uint8_t* abbrevPtr);
+    TreeElementType* ParseDIE(const uint8_t*& ptr, const uint8_t* fileBase, uint32_t cuOffset, uint32_t infoLen, FileBin_DWARF_CompileUnitType* cu,TreeElementType* parent);
+    std::vector<uint8_t> ReadAttributeValue(const uint8_t*& ptr, uint32_t form, uint8_t addrSize, const uint8_t* fileBase);
+
+    uint8_t SymbolResolveType(TreeElementType* node, FileBin_DWARF_VarInfoType* parent);
+    void SymbolTraverse(TreeElementType* node, FileBin_DWARF_VarInfoType *parent);
+
+    void PrintAllAbbrevInfo() const;
+    static std::string FileBin_DWARF_DW_AT_ToString(uint16_t StrCode);
+    static std::string FileBin_DWARF_DW_FORM_ToString(uint16_t StrCode);
+    static std::string FileBin_DWARF_DW_TAG_ToString(uint16_t StrCode);
 };
 
 #endif // FILEBIN_DWARF_H
