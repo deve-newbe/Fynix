@@ -11,8 +11,8 @@ The tool allows to offline calibrate the .hex binaries. In a nutshell, off-line 
 
 Generate ELF with DWARF 4 debug information
 
-![alt text](https://github.com/deve-newbe/Fynix/blob/main/Res/config_debug.png "Logo Title Text 1")
+![alt text](https://github.com/deve-newbe/Fynix/blob/main/Res/config_debug.png "Logo Title Text 1"){ width=400px }
 
 Generate HEX file
 
-![alt text](https://github.com/deve-newbe/Fynix/blob/main/Res/config_hex.png "Logo Title Text 1")
+![alt text](https://github.com/deve-newbe/Fynix/blob/main/Res/config_hex.png "Logo Title Text 1"){ width=400px }
