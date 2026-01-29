@@ -1,3 +1,35 @@
+/**
+ *  \file       WidgetBinCalib.cpp
+ *  \brief      Fynix main window
+ *
+ *  \version    1.0
+ *  \date       Jan 29, 2026
+ *  \author     Xavier Descarrega - DEVE embedded designs <info@deve.tech>
+ *
+ *  \copyright  MIT License
+ *
+ *              Copyright (c) 2016 Xavier Descarrega
+ *
+ *              Permission is hereby granted, free of charge, to any person obtaining a copy
+ *              of this software and associated documentation files (the "Software"), to deal
+ *              in the Software without restriction, including without limitation the rights
+ *              to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ *              copies of the Software, and to permit persons to whom the Software is
+ *              furnished to do so, subject to the following conditions:
+ *
+ *              The above copyright notice and this permission notice shall be included in all
+ *              copies or substantial portions of the Software.
+ *
+ *              THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ *              IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ *              FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ *              AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER
+ *              LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ *              OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ *              SOFTWARE.
+ *
+ */
+
 #ifndef WIDGETBINCALIB_H
 #define WIDGETBINCALIB_H
 
@@ -51,7 +83,7 @@ public:
     void Calib_MasterStruct(FileBin_VarInfoType* node); // Generate master struct of source ifles
     void Calib_MasterSymbolShow(QTreeWidgetItem* item, int column); // Add master symbol list according to selected file
     void Calib_BaseFile_AddNew(std::string filename, FileBin_IntelHex_Memory *newFileBin); // Add new base file
-    void Calib_BaseFile_WidgetPopulate(FileBin_VarInfoType* node, QTreeWidgetItem* item, uint32_t rowIdx, uint32_t colIdx, uint32_t BaseFileColIdx); // Add base file widgets
+    void Calib_BaseFile_WidgetPopulate(FileBin_VarInfoType* node, QTreeWidgetItem* item, uint32_t rowIdx); // Add base file widgets
     void Calib_BaseFile_DataParse(FileBin_VarInfoType* node, uint32_t BaseFileIdx, FileBin_IntelHex_Memory *newFileBin); // Parse base file into widgets
     void Calib_BaseFile_Remove(uint32_t BaseFileIdx); // Add new base file
 
@@ -75,18 +107,18 @@ private:
     vector<SymbolDataInfo *> BaseFileData;
     //uint32_t BaseFileCnt;
 
-    QTreeWidget *m_rightTree;
+
     QPushButton *m_applyBtn;
     QString m_hexFilePath;
 
     QToolBar     *m_toolBar;
-    QTreeWidget  *m_treeWidget;   // Left: Hierarchy/Symbols
+
     QTableWidget *m_tableWidget;  // Right: Hex/Values
     QSplitter    *m_splitter;     // Resizable divider
 
 
     void loadSymbolData(FileBin_VarInfoType* node, QTreeWidgetItem* item, uint32_t rowIdx, uint32_t colIdx, uint32_t BaseFileColIdx);
-    void populateTreeWidgetRecursive(FileBin_DWARF_VarInfoType* node, QTreeWidget* treeWidget, QTreeWidgetItem* parentItem = nullptr);
+    void populateTreeWidgetRecursive(FileBin_DWARF_VarInfoType* node, QTreeWidgetItem* parentItem = nullptr);
    // void RefreshBaseFile(void);
     void BinMemWrite(uint32_t BinIdx, uint32_t SymbolIdx);
 

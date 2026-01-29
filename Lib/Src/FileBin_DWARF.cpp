@@ -1259,6 +1259,9 @@ uint8_t FileBin_DWARF::SymbolResolveType(TreeElementType* node, FileBin_DWARF_Va
             last->next = newVar;
         }
 
+        /* Propagate type */
+        //parent->DataType = newVar->DataType;
+
         // Lookup type in CU typeList
         if ((node->cu)&&(newVar->TypeOffset != 0))
         {
@@ -1269,6 +1272,8 @@ uint8_t FileBin_DWARF::SymbolResolveType(TreeElementType* node, FileBin_DWARF_Va
                 // Recursively traverse the type tree and attach as child
                 symbolSize += SymbolResolveType(typeNode, newVar);
                 // Propagate dimension definition
+                /* Propagate type */
+                parent->DataType = newVar->DataType;
                 parent->Size = newVar->Size;
                 //newVar->Size.push_back(symbolSize);
             }
@@ -1301,6 +1306,9 @@ uint8_t FileBin_DWARF::SymbolResolveType(TreeElementType* node, FileBin_DWARF_Va
             {
                 // Recursively traverse the type tree and attach as child
                 symbolSize += SymbolResolveType(it->second, newVar);
+
+                /* Propagate type */
+                parent->DataType = newVar->DataType;
                 parent->Size = newVar->Size;
             }
         }
