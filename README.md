@@ -5,14 +5,20 @@ This application is able to process .elf files containing both ELF and DWARF inf
 
 The tool allows to offline calibrate the .hex binaries. In a nutshell, off-line calibration allows for changes in behaviour of the code by adjusting symbol values without the need to recompile.
 
-![alt text](https://github.com/deve-newbe/Fynix/blob/main/Res/flow.png "Logo Title Text 1")
+<div align="center">
+    <img src="https://github.com/deve-newbe/Fynix/blob/main/Res/flow.png" alt="alt text" width="500">
+</div>
 
 ## Configure project (STM32CubeIDE)
 
 Generate ELF with DWARF 4 debug information
 
-![alt text](https://github.com/deve-newbe/Fynix/blob/main/Res/config_debug.png "Logo Title Text 1"){ width=400px }
+<div align="center">
+  <img src="https://github.com/deve-newbe/Fynix/blob/main/Res/config_debug.png" alt="alt text" width="500">
+</div>
 
 Generate HEX file
 
-![alt text](https://github.com/deve-newbe/Fynix/blob/main/Res/config_hex.png "Logo Title Text 1"){ width=400px }
+<div align="center">
+  <img src="https://github.com/deve-newbe/Fynix/blob/main/Res/config_hex.png" alt="alt text" width="500">
+</div>
