@@ -33,6 +33,7 @@
 #ifndef DIALOGBINEDITOR_LINEEDIT_H
 #define DIALOGBINEDITOR_LINEEDIT_H
 
+#include "FileBin_DWARF.h"
 #include <QLineEdit>
 
 
@@ -54,9 +55,11 @@ private:
 
     int m_firstInt;
     int m_secondInt;
+    bool Init;
 
 
     virtual void mouseReleaseEvent(QMouseEvent *e);
+    void RefreshState(void);
 
 signals:
     void editingFinishedWithInts(int firstInt, int secondInt);
@@ -75,6 +78,8 @@ public:
     uint32_t yLen;
 
     void parseTable();
+
+    void SetVal(const QString &text);
 
     WidgetTreeTextBox(QWidget *parent, bool showTable, uint32_t Idx, int firstInt, int secondInt, float DefaultVal);// : QLineEdit(parent);
 

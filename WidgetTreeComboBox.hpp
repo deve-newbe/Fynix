@@ -68,12 +68,13 @@ class WidgetTreeComboBox : public QComboBox
 
         int Int1, Int2;
         uint32_t DefaultValIdx;
-        bool isDummy;
+        bool isDummy, Init;
 
         using QComboBox::QComboBox; // Inherit constructors
 
         WidgetTreeComboBox(QWidget *parent = nullptr, int firstInt = -1, int SecondInt= -1, uint32_t DefaultValIdx = 0);
         void setDummy(bool);
+        void setIdx(uint32_t Idx);
 
     private:
 

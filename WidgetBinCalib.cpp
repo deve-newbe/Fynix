@@ -1,6 +1,6 @@
 /**
  *  \file       WidgetBinCalib.hpp
- *  \brief      Fynix main window
+ *  \brief      Fynix binary calibration widget
  *
  *  \version    1.0
  *  \date       Jan 29, 2026
@@ -43,64 +43,12 @@
 #include <QFileDialog>
 #include <QColor>
 #include <QTreeWidget>
-#include <QHeaderView>
-#include <QPainter>
 #include <QScrollBar>
 #include <QEvent>
 #include <QRegularExpression>
 
 #include "WidgetTreeTextBox.hpp"
 #include "WidgetTreeComboBox.hpp"
-
-//QList<QString> headers = {"Symbol", "Address", "Size", "Type"};
-
-class  ColumnHighlightTreeWidget: public QTreeWidget
-{
-   // Q_OBJECT
-
-public:
-    ColumnHighlightTreeWidget(QWidget* parent = nullptr)
-        : QTreeWidget(parent) {}
-
-    // Highlight columns starting from this index
-    void setHighlightFromColumn(int col)
-    {
-        m_startColumn = col;
-        viewport()->update(); // redraw
-    }
-
-protected:
-    void paintEvent(QPaintEvent* event) override
-    {
-        QTreeWidget::paintEvent(event); // draw tree normally
-
-        if (m_startColumn < 0 || m_startColumn >= columnCount())
-            return;
-
-        QPainter painter(viewport());
-        painter.setPen(QPen(Qt::blue, 2));       // border color
-        painter.setBrush(QColor(0,0,255,30));    // optional translucent fill
-
-        // Draw rectangle for each column from m_startColumn onwards
-        for (int col = m_startColumn; col < columnCount(); ++col)
-        {
-            int x = header()->sectionPosition(col);
-            int w = header()->sectionSize(col);
-            int y = 0;
-            int h = viewport()->height();
-
-            painter.drawRect(x, y, w-1, h-1);
-        }
-    }
-
-private:
-    int m_startColumn = -1;
-};
-
-#include <QTreeWidget>
-#include <QPainter>
-#include <QHeaderView>
-#include <QScrollBar>
 
 WidgetTreeComboBox::WidgetTreeComboBox(QWidget *parent, int firstInt, int secondInt, uint32_t DefaultValIdx) : QComboBox(parent), m_firstInt(firstInt), m_secondInt(secondInt)
 {
@@ -111,49 +59,61 @@ WidgetTreeComboBox::WidgetTreeComboBox(QWidget *parent, int firstInt, int second
     this->Int2 = secondInt;
     this->DefaultValIdx = DefaultValIdx;
     this->isDummy = false;
+    this->Init = false;
 
-     setStyleSheet(
-         "QComboBox {"
-         "  background: none;"
-         "  border: none;"
-         "  padding: 0px;"
-         "  margin: 0px;"
-         "}"
+    setStyleSheet(
+        "QComboBox {"
+        "  background: none;"
+        "  border: none;"
+        "  padding: 0px;"
+        "  margin: 0px;"
+        "}"
 
-         "QComboBox::drop-down {"
-         "  border: none;"
-         "}"
+        "QComboBox::drop-down {"
+        "  border: none;"
+        "}"
 
-         "QComboBox::down-arrow {"
-         "  image: none;"
-         "}"
+        "QComboBox::down-arrow {"
+        "  image: none;"
+        "}"
 
+        "QComboBox::item:selected {"
+        "  background-color: rgba(128,128,128,120);"
+        "}"
 
-         "QComboBox::item:selected {"
-         "  background-color: rgba(128,128,128,120);"
-         "}"
+        /* POPUP (dropdown list) */
+        "QComboBox QAbstractItemView {"
+        "  background-color: rgb(255,255,255);"   /* or any solid color */
+        "  color: black;"
+        "  border: none;"
+        "  selection-background-color: rgba(128,128,128,120);"
+        "}"
+        );
 
-         /* 🔹 POPUP (dropdown list) */
-         "QComboBox QAbstractItemView {"
-         "  background-color: rgb(255,255,255);"   /* or any solid color */
-         "  color: black;"
-         "  border: none;"
-         "  selection-background-color: rgba(128,128,128,120);"
-         "}"
-         );
-
-   //  Connect the editingFinished signal to a lambda
+    // Connect the editingFinished signal to a lambda
     connect(this, &QComboBox::currentIndexChanged, this, [this]() {
-        emit editingFinishedWithInts(m_firstInt, m_secondInt);
+        if (this->Init)
+        {
+            emit editingFinishedWithInts(m_firstInt, m_secondInt);
+        }
     });
 
     // Install event filter on the dropdown list
     view()->viewport()->installEventFilter(this);
+
+    this->Init = true;
 }
 
 void WidgetTreeComboBox::setDummy(bool dummy)
 {
     this->isDummy = dummy;
+}
+
+void WidgetTreeComboBox::setIdx(uint32_t Idx)
+{
+    this->Init = false;
+    this->setCurrentIndex(Idx);
+    this->Init = true;
 }
 
 void WidgetTreeComboBox::wheelEvent( QWheelEvent * e)
@@ -177,14 +137,11 @@ void WidgetTreeComboBox::paintEvent(QPaintEvent *event)
     painter.setFont(f);
 
     // Draw the label (current text) in the proper rectangle
-    QRect textRect = style()->subControlRect(
-        QStyle::CC_ComboBox, &opt, QStyle::SC_ComboBoxEditField, this
-        );
+    QRect textRect = style()->subControlRect(QStyle::CC_ComboBox, &opt, QStyle::SC_ComboBoxEditField, this);
 
     painter.setPen(palette().color(QPalette::Text));
     painter.drawText(textRect, Qt::AlignCenter, currentText());
 }
-
 
 bool WidgetTreeComboBox::eventFilter(QObject *obj, QEvent *event)
 {
@@ -199,17 +156,17 @@ bool WidgetTreeComboBox::eventFilter(QObject *obj, QEvent *event)
             QApplication::restoreOverrideCursor(); // Restore default cursor
         }
     }
+
     return QComboBox::eventFilter(obj, event);
 }
 
-
 void WidgetTreeComboBox::enterEvent(QEnterEvent *event)
 {
-    std::cout << "isdummy " << (int)isDummy << std::endl;
-
-    if (!isDummy) {
+    if (!isDummy)
+    {
         setCursor(Qt::PointingHandCursor); // hand pointer on hover
     }
+
     QComboBox::enterEvent(event);
 }
 
@@ -218,7 +175,29 @@ void WidgetTreeComboBox::leaveEvent(QEvent *event)
     if (!isDummy) {
         unsetCursor(); // restore default
     }
+
     QComboBox::leaveEvent(event);
+}
+
+
+void WidgetTreeTextBox::RefreshState(void)
+{
+    this->setProperty("valueChanged", (this->text().toFloat() != this->DefaultVal));
+
+    this->setStyleSheet(R"(
+        QLineEdit {
+          background: none;
+          border: none;
+          padding: 0px;
+          margin: 0px;
+        }
+        QLineEdit[valueChanged="true"] {
+            font-weight: bold;
+        }
+        QLineEdit[valueChanged="false"] {
+            font-weight: normal;
+        }
+        )");
 }
 
 WidgetTreeTextBox::WidgetTreeTextBox(QWidget *parent, bool showTable, uint32_t Idx, int firstInt, int secondInt, float DefaultVal) : QLineEdit(parent), m_firstInt(firstInt), m_secondInt(secondInt)
@@ -226,38 +205,38 @@ WidgetTreeTextBox::WidgetTreeTextBox(QWidget *parent, bool showTable, uint32_t I
     this->showTable = showTable;
     this->Idx = Idx;
     this->DefaultVal = DefaultVal;
-
+    this->Init = false;
+//this->blockSignals(true);
     // Connect the editingFinished signal to a lambda
-    connect(this, &WidgetTreeTextBox::editingFinished, this, [this](){
+    connect(this, &WidgetTreeTextBox::textEdited, this, [this](){
+
+
+        RefreshState();
+        if (this->Init)
+        {
                 emit editingFinishedWithInts(m_firstInt, m_secondInt);
+        }
     });
 
-    connect(this, &QLineEdit::textChanged, this, &WidgetTreeTextBox::onTextChanged);
-
+    //connect(this, &QLineEdit::tex, this, &WidgetTreeTextBox::onTextChanged);
+//this->blockSignals(false);
     // Center the text in the QLineEdit
     this->setAlignment(Qt::AlignCenter);
 
     // Appearance
     setAlignment(Qt::AlignCenter);
     setFrame(false);
-    //setFocusPolicy(Qt::NoFocus);
     setAttribute(Qt::WA_MacShowFocusRect, false);
 
-    this->setStyleSheet(
-        "QLineEdit {"
-        "  border: none;"
-        "  background-color: transparent;"
-        "}"
-        "QLineEdit:hover {"
-        "  background-color: grey;"
-        "}"
-        );
+
 
     if (showTable)
     {
         this->setReadOnly(true);
         this->setCursor(Qt::PointingHandCursor);
     }
+
+    this->Init = true;
 }
 
 void WidgetTreeTextBox::onTextChanged(const QString &text)
@@ -270,6 +249,12 @@ void WidgetTreeTextBox::onTextChanged(const QString &text)
     {
         this->setStyleSheet("QLineEdit { font-weight: normal; }");
     }
+}
+
+void WidgetTreeTextBox::SetVal(const QString &text)
+{
+    this->setText(text);
+    RefreshState();
 }
 
 void WidgetTreeTextBox::mouseReleaseEvent(QMouseEvent *e)
@@ -659,37 +644,6 @@ QTreeWidget  *m_treeWidget;   // Left: Hierarchy/Symbols
 QTreeWidget *m_symbolTree;
 
 
-QTreeWidgetItem* copyItemWithoutColumn(QTreeWidgetItem* item, int colToRemove)
-{
-    // Create new item with one less column
-    int oldCount = item->columnCount();
-    QTreeWidgetItem* newItem = new QTreeWidgetItem(oldCount - 1);
-
-    // Copy data, skipping the column to remove
-    int j = 0;
-    for (int i = 0; i < oldCount; ++i)
-    {
-        if (i == colToRemove)
-            continue;
-
-        newItem->setText(j, item->text(i));
-        // Optional: copy icons, colors, tooltips, etc.
-        newItem->setIcon(j, item->icon(i));
-        newItem->setBackground(j, item->background(i));
-        newItem->setForeground(j, item->foreground(i));
-        j++;
-    }
-
-    // Recursively copy children
-    for (int c = 0; c < item->childCount(); ++c)
-    {
-        QTreeWidgetItem* childCopy = copyItemWithoutColumn(item->child(c), colToRemove);
-        newItem->addChild(childCopy);
-    }
-
-    return newItem;
-}
-
 BinCalibToolWidget::BinCalibToolWidget(QWidget *parent, FileBin_ELF *elf) : QWidget(parent)
 {
     this->ELFData = elf;
@@ -714,36 +668,33 @@ BinCalibToolWidget::BinCalibToolWidget(QWidget *parent, FileBin_ELF *elf) : QWid
 
     // 5. Apply padding via stylesheet (applies to all buttons in the toolbar)
     m_toolBar->setStyleSheet(R"(
-    QToolButton {
-        padding: 2px;              /* adds space around the icon */
-        margin: 2px;               /* optional: space between buttons */
-        border: none;              /* flat look */
-        background-color: transparent;
-border-radius: 4px;        /* Slightly rounded corners */
-    }
-    QToolButton:checked {
-        background-color: #80aee0; /* Fynix blue for checked buttons */
-        color: white;
-    }
-    QToolButton:hover {
-        background-color: #e6f0fa; /* subtle hover */
-    }
+        QToolButton {
+            padding: 2px;              /* adds space around the icon */
+            margin: 2px;               /* optional: space between buttons */
+            border: none;              /* flat look */
+            background-color: transparent;
+            border-radius: 4px;        /* Slightly rounded corners */
+        }
+        QToolButton:checked {
+            background-color: #80aee0; /* Fynix blue for checked buttons */
+            color: white;
+        }
+        QToolButton:hover {
+            background-color: #e6f0fa; /* subtle hover */
+        }
 
- QToolButton:checked:hover {
-        background-color: #80aee0;
-    }
-)");
-
-    // Optional: remove toolbar border / background
-   // m_toolBar->setStyleSheet("QToolBar { border: none; background: transparent; }");
+        QToolButton:checked:hover {
+            background-color: #80aee0;
+        }
+    )");
 
     // Add dummy actions
     QAction* actionViewAdvanced = m_toolBar->addAction(QIcon(":/icon/view_advanced.svg"), "View advanced");
     QAction* actionLoadFile = m_toolBar->addAction(QIcon(":/icon/folder-open.svg"), "Open file...");
-   // QAction *reloadAct = m_toolBar->addAction("Info");
+    // QAction *reloadAct = m_toolBar->addAction("Info");
     actionViewAdvanced->setCheckable(true);
     actionViewAdvanced->setChecked(true);
-   // m_toolBar->addSeparator();
+    // m_toolBar->addSeparator();
 
     mainLayout->addWidget(m_toolBar);
 
@@ -780,7 +731,7 @@ border-radius: 4px;        /* Slightly rounded corners */
     //overlay->show();
 
     // Make the 3rd column (index 2) have a border
-   // m_rightTree->setItemDelegate(new ColumnBorderDelegate(4));
+    // m_rightTree->setItemDelegate(new ColumnBorderDelegate(4));
     header = new ClickableHeader(Qt::Horizontal, m_symbolTree);
 
     header->onIconClicked = [this](int section, int icon, string filename){
@@ -802,11 +753,11 @@ border-radius: 4px;        /* Slightly rounded corners */
         // Backup header labels
         //QStringList newHeaders;
         //for (int i = 0; i < oldCount; ++i)
-      //  {
-            //if (i == columnToRemove)
-           //     continue;
-       //     newHeaders << m_symbolTree->headerItem()->text(i);
-       // }
+        //  {
+        //if (i == columnToRemove)
+        //     continue;
+        //     newHeaders << m_symbolTree->headerItem()->text(i);
+        // }
 
         // Copy top-level items
         QList<QTreeWidgetItem*> topLevelCopies;
@@ -832,23 +783,23 @@ border-radius: 4px;        /* Slightly rounded corners */
         }
 
 
-       // int columnToRemove = section; // assuming section is the column index
+        // int columnToRemove = section; // assuming section is the column index
 
         //if (columnToRemove >= 0 && columnToRemove < m_symbolTree->columnCount())
         //{
-            // Hide or remove the column
-           // m_symbolTree->setColumnHidden(columnToRemove, true);
+        // Hide or remove the column
+        // m_symbolTree->setColumnHidden(columnToRemove, true);
 
-            // Optional: update internal data if you track BaseFileData
-            if (columnToRemove >= 4) // if your data columns start at 4
+        // Optional: update internal data if you track BaseFileData
+        if (columnToRemove >= 4) // if your data columns start at 4
+        {
+            int dataIdx = columnToRemove - 4;
+            if (dataIdx < BaseFileData.size())
             {
-                int dataIdx = columnToRemove - 4;
-                if (dataIdx < BaseFileData.size())
-                {
-                    BaseFileData.erase(BaseFileData.begin() + dataIdx);
-                }
+                BaseFileData.erase(BaseFileData.begin() + dataIdx);
             }
-       // }
+        }
+        // }
     };
 
 
@@ -861,13 +812,13 @@ border-radius: 4px;        /* Slightly rounded corners */
 
 
     //header->addColumn("Symbol", 260);
-   // m_rightTree->setColumnCount(3);
-   // m_rightTree->setHeaderLabels(headers);
+    // m_rightTree->setColumnCount(3);
+    // m_rightTree->setHeaderLabels(headers);
 
-   // m_rightTree->header()->stretchLastSection();
-   // m_rightTree->setHeaderLabels(headers);
+    // m_rightTree->header()->stretchLastSection();
+    // m_rightTree->setHeaderLabels(headers);
     //m_rightTree->setColumnWidth(0,260);
-   // m_rightTree->setColumnWidth(1,80);
+    // m_rightTree->setColumnWidth(1,80);
     //m_rightTree->setColumnWidth(2,40);
     //m_rightTree->setColumnWidth(3,60);
     //m_rightTree->setColumnWidth(4,250);
@@ -933,70 +884,96 @@ border-radius: 4px;        /* Slightly rounded corners */
 
                 IsViewAdvanced = checked;
                 m_symbolTree->setColumnHidden(1, !IsViewAdvanced);
-                 m_symbolTree->setColumnHidden(2, !IsViewAdvanced);
-                  m_symbolTree->setColumnHidden(3, !IsViewAdvanced);
+                m_symbolTree->setColumnHidden(2, !IsViewAdvanced);
+                m_symbolTree->setColumnHidden(3, !IsViewAdvanced);
             });
 
     connect(actionLoadFile, &QAction::triggered, this, [this, actionLoadFile](bool checked)
             {
-        QString fileName = QFileDialog::getOpenFileName(
-            this,
-            tr("Open File"),
-            QString(),                       // initial directory
-            tr("ELF Files (*.elf);;Intel HEX Files (*.hex);;All Files (*)")            // filter
-            );
+                QString fileName = QFileDialog::getOpenFileName(
+                    this,
+                    tr("Open File"),
+                    QString(),                       // initial directory
+                    tr("ELF Files (*.elf);;Intel HEX Files (*.hex);;All Files (*)")            // filter
+                    );
 
-        if (fileName.isEmpty())
-            return;
+                if (fileName.isEmpty())
+                    return;
 
-        QFileInfo fileInfo(fileName);
-        // Get the file extension (e.g., "txt", "jpg")
-        QString extension = fileInfo.suffix().toLower();
+                QFileInfo fileInfo(fileName);
+                // Get the file extension (e.g., "txt", "jpg")
+                QString extension = fileInfo.suffix().toLower();
 
-        // Check the file extension
-        if (extension == "elf")
-        {
-            qDebug() << "Dropped master file:" << fileName;
-            //loadElf(fileName.toStdString());
+                // Check the file extension
+                if (extension == "elf")
+                {
+                    qDebug() << "Dropped master file:" << fileName;
+                    //loadElf(fileName.toStdString());
 
 
-            //IsMasterFileLoaded = true;
-        }
-        else if (extension == "hex")
-        {
-            FileBin_IntelHex_Memory *newBaseFile = new FileBin_IntelHex_Memory();
-            newBaseFile->Load(fileName.toStdString().c_str(), LIB_FIRMWAREBIN_HEX);
-            this->Calib_BaseFile_AddNew(fileName.toStdString(), newBaseFile);
-            //qDebug() << "Dropped image file:" << fileName;
-            ///if (!Mem2[this->BaseFileCnt].Load(filePath.toStdString().c_str(), LIB_FIRMWAREBIN_HEX))
-            //{
-            //    cout << "Error loading" << endl;
-            //    return;
-            // }
-            //else
-            //{
-            //   cout << "Loading finished" << endl;
-           // AddNewBaseFile(fileName.toStdString());
+                    //IsMasterFileLoaded = true;
+                }
+                else if (extension == "hex")
+                {
+                    FileBin_IntelHex_Memory *newBaseFile = new FileBin_IntelHex_Memory();
+                    newBaseFile->Load(fileName.toStdString().c_str(), LIB_FIRMWAREBIN_HEX);
+                    this->Calib_BaseFile_AddNew(fileName.toStdString(), newBaseFile);
+                    //qDebug() << "Dropped image file:" << fileName;
+                    ///if (!Mem2[this->BaseFileCnt].Load(filePath.toStdString().c_str(), LIB_FIRMWAREBIN_HEX))
+                    //{
+                    //    cout << "Error loading" << endl;
+                    //    return;
+                    // }
+                    //else
+                    //{
+                    //   cout << "Loading finished" << endl;
+                    // AddNewBaseFile(fileName.toStdString());
 
-            //  Parse_Master_Symbol();
-            // parseHexFile();
-            // isFileLoaded = true;
-            //}
-        }
-        else
-        {
-           // qDebug() << "Dropped file with unsupported extension:" << filePath;
-        }
+                    //  Parse_Master_Symbol();
+                    // parseHexFile();
+                    // isFileLoaded = true;
+                    //}
+                }
+                else
+                {
+                    // qDebug() << "Dropped file with unsupported extension:" << filePath;
+                }
 
 
             });
 
 }
 
+QTreeWidgetItem* BinCalibToolWidget::copyItemWithoutColumn(QTreeWidgetItem* item, int colToRemove)
+{
+    // Create new item with one less column
+    int oldCount = item->columnCount();
+    QTreeWidgetItem* newItem = new QTreeWidgetItem(oldCount - 1);
 
-//uint32_t SymbolValIdx;
+    // Copy data, skipping the column to remove
+    int j = 0;
+    for (int i = 0; i < oldCount; ++i)
+    {
+        if (i == colToRemove)
+            continue;
 
- void Calib_MasterWidget(void);
+        newItem->setText(j, item->text(i));
+        // Optional: copy icons, colors, tooltips, etc.
+        newItem->setIcon(j, item->icon(i));
+        newItem->setBackground(j, item->background(i));
+        newItem->setForeground(j, item->foreground(i));
+        j++;
+    }
+
+    // Recursively copy children
+    for (int c = 0; c < item->childCount(); ++c)
+    {
+        QTreeWidgetItem* childCopy = copyItemWithoutColumn(item->child(c), colToRemove);
+        newItem->addChild(childCopy);
+    }
+
+    return newItem;
+}
 
  void BinCalibToolWidget::Calib_BaseFile_DataParse(FileBin_VarInfoType* node, uint32_t BaseFileIdx, FileBin_IntelHex_Memory *newFileBin)
  {
@@ -1016,49 +993,49 @@ border-radius: 4px;        /* Slightly rounded corners */
             case FileBin_VARINFO_TYPE_UINT8:
             {
                 WidgetTreeTextBox *lineedit = (WidgetTreeTextBox *)this->BaseFileData.at(BaseFileIdx)->data.at(i)->WidgetData;
-                lineedit->setText(QString::number(newFileBin->ReadMem_uint8(nullptr, 0, this->BaseFileData.at(BaseFileIdx)->data.at(i)->node->Addr)));
+                lineedit->SetVal(QString::number(newFileBin->ReadMem_uint8(nullptr, 0, this->BaseFileData.at(BaseFileIdx)->data.at(i)->node->Addr)));
                 break;
             }
             case FileBin_VARINFO_TYPE_SINT8:
             {
                 WidgetTreeTextBox *lineedit = (WidgetTreeTextBox *)this->BaseFileData.at(BaseFileIdx)->data.at(i)->WidgetData;
-                lineedit->setText(QString::number(newFileBin->ReadMem_sint8(nullptr, 0, this->BaseFileData.at(BaseFileIdx)->data.at(i)->node->Addr)));
+                lineedit->SetVal(QString::number(newFileBin->ReadMem_sint8(nullptr, 0, this->BaseFileData.at(BaseFileIdx)->data.at(i)->node->Addr)));
                 break;
             }
             case FileBin_VARINFO_TYPE_UINT16:
             {
                 WidgetTreeTextBox *lineedit = (WidgetTreeTextBox *)this->BaseFileData.at(BaseFileIdx)->data.at(i)->WidgetData;
-                lineedit->setText(QString::number(newFileBin->ReadMem_uint16(nullptr, 0, this->BaseFileData.at(BaseFileIdx)->data.at(i)->node->Addr)));
+                lineedit->SetVal(QString::number(newFileBin->ReadMem_uint16(nullptr, 0, this->BaseFileData.at(BaseFileIdx)->data.at(i)->node->Addr)));
                 break;
             }
             case FileBin_VARINFO_TYPE_SINT16:
             {
                 WidgetTreeTextBox *lineedit = (WidgetTreeTextBox *)this->BaseFileData.at(BaseFileIdx)->data.at(i)->WidgetData;
-                lineedit->setText(QString::number(newFileBin->ReadMem_sint16(nullptr, 0, this->BaseFileData.at(BaseFileIdx)->data.at(i)->node->Addr)));
+                lineedit->SetVal(QString::number(newFileBin->ReadMem_sint16(nullptr, 0, this->BaseFileData.at(BaseFileIdx)->data.at(i)->node->Addr)));
                 break;
             }
             case FileBin_VARINFO_TYPE_UINT32:
             {
                 WidgetTreeTextBox *lineedit = (WidgetTreeTextBox *)this->BaseFileData.at(BaseFileIdx)->data.at(i)->WidgetData;
-                lineedit->setText(QString::number(newFileBin->ReadMem_uint32(this->BaseFileData.at(BaseFileIdx)->data.at(i)->node->Addr)));
+                lineedit->SetVal(QString::number(newFileBin->ReadMem_uint32(this->BaseFileData.at(BaseFileIdx)->data.at(i)->node->Addr)));
                 break;
             }
             case FileBin_VARINFO_TYPE_SINT32:
             {
                 WidgetTreeTextBox *lineedit = (WidgetTreeTextBox *)this->BaseFileData.at(BaseFileIdx)->data.at(i)->WidgetData;
-                lineedit->setText(QString::number(newFileBin->ReadMem_sint32(nullptr, 0, this->BaseFileData.at(BaseFileIdx)->data.at(i)->node->Addr)));
+                lineedit->SetVal(QString::number(newFileBin->ReadMem_sint32(nullptr, 0, this->BaseFileData.at(BaseFileIdx)->data.at(i)->node->Addr)));
                 break;
             }
             case FileBin_VARINFO_TYPE_FLOAT32:
             {
                 WidgetTreeTextBox *lineedit = (WidgetTreeTextBox *)this->BaseFileData.at(BaseFileIdx)->data.at(i)->WidgetData;
-                lineedit->setText(QString::number(newFileBin->ReadMem_float32(nullptr, 0, this->BaseFileData.at(BaseFileIdx)->data.at(i)->node->Addr)));
+                lineedit->SetVal(QString::number(newFileBin->ReadMem_float32(nullptr, 0, this->BaseFileData.at(BaseFileIdx)->data.at(i)->node->Addr)));
                 break;
             }
             case FileBin_VARINFO_TYPE_ENUM:
             {
                 WidgetTreeComboBox *dataWidget = (WidgetTreeComboBox *)this->BaseFileData.at(BaseFileIdx)->data.at(i)->WidgetData;
-                dataWidget->setCurrentIndex(newFileBin->ReadMem_uint8(nullptr, 0, this->BaseFileData.at(BaseFileIdx)->data.at(i)->node->Addr));
+                dataWidget->setIdx(newFileBin->ReadMem_uint8(nullptr, 0, this->BaseFileData.at(BaseFileIdx)->data.at(i)->node->Addr));
                 break;
             }
             default:
@@ -1069,7 +1046,7 @@ border-radius: 4px;        /* Slightly rounded corners */
     }
  }
 
- void BinCalibToolWidget::BinMemWrite(uint32_t BinIdx, uint32_t SymbolIdx)
+ void BinCalibToolWidget::BinMemWrite(FileBin_VarInfoType *InfoNode, uint32_t BinIdx, uint32_t SymbolIdx)
  {
     if (BinIdx > (this->BaseFileData.size() - 1))
     {
@@ -1088,70 +1065,71 @@ border-radius: 4px;        /* Slightly rounded corners */
         return;
     }
 
-    //cout << "Writing memory BinFile Idx: " << BinIdx << " Symbol Idx: " << SymbolIdx << " Addr: 0x" << std::hex << this->BaseFileData.at(BinIdx)->data.at(SymbolIdx)->node->Addr <<  endl;
+    cout << "Writing memory BinFile type: " << (int)InfoNode->DataType <<  " Idx: " << BinIdx << " Symbol Idx: " << SymbolIdx << " Addr: 0x" << std::hex << InfoNode->Addr <<  endl;
 
     switch(this->BaseFileData.at(BinIdx)->data.at(SymbolIdx)->node->DataType)
     {
         case FileBin_VARINFO_TYPE_BOOLEAN:
         {
             WidgetTreeTextBox* textBox = (WidgetTreeTextBox*)this->BaseFileData.at(BinIdx)->data.at(SymbolIdx)->WidgetData;
-            this->BaseFileData.at(BinIdx)->mem->WriteMem_boolean(this->BaseFileData.at(BinIdx)->data.at(SymbolIdx)->node->Addr, textBox->text().toFloat());
+            this->BaseFileData.at(BinIdx)->mem->WriteMem_boolean(InfoNode->Addr, textBox->text().toFloat());
             break;
         }
 
         case FileBin_VARINFO_TYPE_UINT8:
         {
             WidgetTreeTextBox* textBox = (WidgetTreeTextBox*)this->BaseFileData.at(BinIdx)->data.at(SymbolIdx)->WidgetData;
-            this->BaseFileData.at(BinIdx)->mem->WriteMem_uint8(this->BaseFileData.at(BinIdx)->data.at(SymbolIdx)->node->Addr, textBox->text().toFloat());
+            this->BaseFileData.at(BinIdx)->mem->WriteMem_uint8(InfoNode->Addr, textBox->text().toUInt());
             break;
         }
 
         case FileBin_VARINFO_TYPE_SINT8:
         {
             WidgetTreeTextBox* textBox = (WidgetTreeTextBox*)this->BaseFileData.at(BinIdx)->data.at(SymbolIdx)->WidgetData;
-            this->BaseFileData.at(BinIdx)->mem->WriteMem_sint8(this->BaseFileData.at(BinIdx)->data.at(SymbolIdx)->node->Addr, textBox->text().toFloat());
+            this->BaseFileData.at(BinIdx)->mem->WriteMem_sint8(InfoNode->Addr, textBox->text().toInt());
             break;
         }
 
         case FileBin_VARINFO_TYPE_UINT16:
         {
             WidgetTreeTextBox* textBox = (WidgetTreeTextBox*)this->BaseFileData.at(BinIdx)->data.at(SymbolIdx)->WidgetData;
-            this->BaseFileData.at(BinIdx)->mem->WriteMem_uint16(this->BaseFileData.at(BinIdx)->data.at(SymbolIdx)->node->Addr, textBox->text().toFloat());
+            this->BaseFileData.at(BinIdx)->mem->WriteMem_uint16(InfoNode->Addr, textBox->text().toUInt());
             break;
         }
 
         case FileBin_VARINFO_TYPE_SINT16:
         {
             WidgetTreeTextBox* textBox = (WidgetTreeTextBox*)this->BaseFileData.at(BinIdx)->data.at(SymbolIdx)->WidgetData;
-            this->BaseFileData.at(BinIdx)->mem->WriteMem_sint16(this->BaseFileData.at(BinIdx)->data.at(SymbolIdx)->node->Addr, textBox->text().toFloat());
+            this->BaseFileData.at(BinIdx)->mem->WriteMem_sint16(InfoNode->Addr, textBox->text().toInt());
             break;
         }
 
         case FileBin_VARINFO_TYPE_UINT32:
         {
             WidgetTreeTextBox* textBox = (WidgetTreeTextBox*)this->BaseFileData.at(BinIdx)->data.at(SymbolIdx)->WidgetData;
-            this->BaseFileData.at(BinIdx)->mem->WriteMem_uint32(this->BaseFileData.at(BinIdx)->data.at(SymbolIdx)->node->Addr, textBox->text().toFloat());
+            this->BaseFileData.at(BinIdx)->mem->WriteMem_uint32(InfoNode->Addr, textBox->text().toUInt());
             break;
         }
 
         case FileBin_VARINFO_TYPE_SINT32:
         {
             WidgetTreeTextBox* textBox = (WidgetTreeTextBox*)this->BaseFileData.at(BinIdx)->data.at(SymbolIdx)->WidgetData;
-            this->BaseFileData.at(BinIdx)->mem->WriteMem_sint32(this->BaseFileData.at(BinIdx)->data.at(SymbolIdx)->node->Addr, textBox->text().toFloat());
+            this->BaseFileData.at(BinIdx)->mem->WriteMem_sint32(InfoNode->Addr, textBox->text().toInt());
             break;
         }
 
         case FileBin_VARINFO_TYPE_FLOAT32:
         {
             WidgetTreeTextBox* textBox = (WidgetTreeTextBox*)this->BaseFileData.at(BinIdx)->data.at(SymbolIdx)->WidgetData;
-            this->BaseFileData.at(BinIdx)->mem->WriteMem_float32(this->BaseFileData.at(BinIdx)->data.at(SymbolIdx)->node->Addr, textBox->text().toFloat());
+            this->BaseFileData.at(BinIdx)->mem->WriteMem_float32(InfoNode->Addr, textBox->text().toFloat());
             break;
         }
 
         case FileBin_VARINFO_TYPE_ENUM:
         {
+
             WidgetTreeComboBox* comboBox = (WidgetTreeComboBox*)this->BaseFileData.at(BinIdx)->data.at(SymbolIdx)->WidgetData;
-            this->BaseFileData.at(BinIdx)->mem->WriteMem_uint8(this->BaseFileData.at(BinIdx)->data.at(SymbolIdx)->node->Addr, comboBox->currentIndex());
+            this->BaseFileData.at(BinIdx)->mem->WriteMem_uint8(InfoNode->Addr, comboBox->currentIndex());
             break;
         }
 
@@ -1188,38 +1166,32 @@ void BinCalibToolWidget::Calib_BaseFile_WidgetPopulate(FileBin_VarInfoType* node
                 widgetData->setText("<" + dims.join(" x ") + ">");
 
                 tree->setItemWidget(item->child(childIdx), 4 + BaseFileIdx, widgetData);
-               // SymbolValIdx++;
-               // childIdx++;
             }
             else
             {
                 if (FileBin_VARINFO_TYPE_BOOLEAN == node->DataType)
                 {
-                   std::vector<uint8_t> raw = this->ELFData->readSymbolFromELF(node->Addr, node->Size.at(0));
+                    std::vector<uint8_t> raw = this->ELFData->readSymbolFromELF(node->Addr, node->Size.at(0));
 
-                   bool value = 0;
-                   if (raw.size() >= 1)
-                   {
-                       value = static_cast<uint8_t>(raw[0]);
-                   }
+                    bool value = 0;
 
-                   WidgetTreeTextBox *widgetData = new WidgetTreeTextBox(this, false, 0, BaseFileIdx, BaseFileData.at(BaseFileIdx)->data.size(), value);
+                    if (raw.size() >= 1)
+                    {
+                        value = static_cast<uint8_t>(raw[0]);
+                    }
 
-                   QObject::connect(widgetData, &WidgetTreeTextBox::editingFinishedWithInts,
-                                    [this, &widgetData](int firstInt, int secondInt)
-                                    {
-                                        this->BinMemWrite(firstInt, secondInt);
-                                    });
+                    WidgetTreeTextBox *widgetData = new WidgetTreeTextBox(this, false, 0, BaseFileIdx, BaseFileData.at(BaseFileIdx)->data.size(), value);
 
-                   tree->setItemWidget(item->child(childIdx), 4+BaseFileIdx, widgetData);
+                    tree->setItemWidget(item->child(childIdx), 4+BaseFileIdx, widgetData);
 
-                   SymbolDataType *newDataInfo = new SymbolDataType();
-                   newDataInfo->node = node;
-                   newDataInfo->WidgetData = widgetData;
-                   BaseFileData.at(BaseFileIdx)->data.push_back(newDataInfo);
+                    QObject::connect(widgetData, &WidgetTreeTextBox::editingFinishedWithInts, [this, node](int firstInt, int secondInt) {
+                        this->BinMemWrite(node, firstInt, secondInt);
+                    });
 
-                   //childIdx++;
-                  /// SymbolValIdx++;
+                    SymbolDataType *newDataInfo = new SymbolDataType();
+                    newDataInfo->node = node;
+                    newDataInfo->WidgetData = widgetData;
+                    BaseFileData.at(BaseFileIdx)->data.push_back(newDataInfo);
                 }
                 else if (FileBin_VARINFO_TYPE_UINT8 == node->DataType)
                 {
@@ -1233,21 +1205,16 @@ void BinCalibToolWidget::Calib_BaseFile_WidgetPopulate(FileBin_VarInfoType* node
 
                     WidgetTreeTextBox *widgetData = new WidgetTreeTextBox(this, false, 0, BaseFileIdx, BaseFileData.at(BaseFileIdx)->data.size(), value);
 
-                    QObject::connect(widgetData, &WidgetTreeTextBox::editingFinishedWithInts,
-                                    [this, &widgetData](int firstInt, int secondInt)
-                                    {
-                                        this->BinMemWrite(firstInt, secondInt);
-                                    });
-
                     tree->setItemWidget(item->child(childIdx), 4+BaseFileIdx, widgetData);
+
+                    QObject::connect(widgetData, &WidgetTreeTextBox::editingFinishedWithInts, [this, node](int firstInt, int secondInt) {
+                        this->BinMemWrite(node, firstInt, secondInt);
+                    });
 
                     SymbolDataType *newDataInfo = new SymbolDataType();
                     newDataInfo->node = node;
                     newDataInfo->WidgetData = widgetData;
                     BaseFileData.at(BaseFileIdx)->data.push_back(newDataInfo);
-
-                    //childIdx++;
-                    //SymbolValIdx++;
                 }
                 else if (FileBin_VARINFO_TYPE_SINT8 == node->DataType)
                 {
@@ -1259,21 +1226,18 @@ void BinCalibToolWidget::Calib_BaseFile_WidgetPopulate(FileBin_VarInfoType* node
                         value = static_cast<int8_t>(raw[0]);
                     }
 
-                    WidgetTreeTextBox *widgetData = new WidgetTreeTextBox(this, false, 0, BaseFileIdx, 0, value);
-
-                    QObject::connect(widgetData, &WidgetTreeTextBox::editingFinishedWithInts, [this, &widgetData](int firstInt, int secondInt) {
-                        BinMemWrite(firstInt, secondInt);
-                    });
+                    WidgetTreeTextBox *widgetData = new WidgetTreeTextBox(this, false, 0, BaseFileIdx, BaseFileData.at(BaseFileIdx)->data.size(), value);
 
                     tree->setItemWidget(item->child(childIdx), 4 + BaseFileIdx, widgetData);
+
+                    QObject::connect(widgetData, &WidgetTreeTextBox::editingFinishedWithInts, [this, node](int firstInt, int secondInt) {
+                        BinMemWrite(node, firstInt, secondInt);
+                    });
 
                     SymbolDataType *newDataInfo = new SymbolDataType();
                     newDataInfo->node = node;
                     newDataInfo->WidgetData = widgetData;
                     BaseFileData.at(BaseFileIdx)->data.push_back(newDataInfo);
-
-                    //SymbolValIdx++;
-                   // childIdx++;
                 }
                 else if (FileBin_VARINFO_TYPE_UINT16 == node->DataType)
                 {
@@ -1286,23 +1250,18 @@ void BinCalibToolWidget::Calib_BaseFile_WidgetPopulate(FileBin_VarInfoType* node
                         | (static_cast<uint16_t>(raw[1]) << 8);
                     }
 
-                    WidgetTreeTextBox *widgetData = new WidgetTreeTextBox(this, false, 0, BaseFileIdx, 0, value);
-
-                    QObject::connect(widgetData, &WidgetTreeTextBox::editingFinishedWithInts,
-                                      [this, &widgetData](int firstInt, int secondInt)
-                                      {
-                                          BinMemWrite(firstInt, secondInt);
-                                      });
+                    WidgetTreeTextBox *widgetData = new WidgetTreeTextBox(this, false, 0, BaseFileIdx, BaseFileData.at(BaseFileIdx)->data.size(), value);
 
                     tree->setItemWidget(item->child(childIdx), 4 + BaseFileIdx, widgetData);
 
-                     SymbolDataType *newDataInfo = new SymbolDataType();
-                     newDataInfo->node = node;
-                     newDataInfo->WidgetData = widgetData;
-                     BaseFileData.at(BaseFileIdx)->data.push_back(newDataInfo);
+                    QObject::connect(widgetData, &WidgetTreeTextBox::editingFinishedWithInts, [this, node](int firstInt, int secondInt) {
+                        BinMemWrite(node, firstInt, secondInt);
+                    });
 
-                   // SymbolValIdx++;
-                    //childIdx++;
+                    SymbolDataType *newDataInfo = new SymbolDataType();
+                    newDataInfo->node = node;
+                    newDataInfo->WidgetData = widgetData;
+                    BaseFileData.at(BaseFileIdx)->data.push_back(newDataInfo);
                 }
                 else if (FileBin_VARINFO_TYPE_SINT16 == node->DataType)
                 {
@@ -1315,46 +1274,40 @@ void BinCalibToolWidget::Calib_BaseFile_WidgetPopulate(FileBin_VarInfoType* node
                         | (static_cast<int16_t>(raw[1]) << 8);
                     }
 
-                    WidgetTreeTextBox *widgetData = new WidgetTreeTextBox(this, false, 0, BaseFileIdx, 0, value);
-
-                    QObject::connect(widgetData, &WidgetTreeTextBox::editingFinishedWithInts,
-                                     [this, &widgetData](int firstInt, int secondInt)
-                                     {
-                                         BinMemWrite(firstInt, secondInt);
-                                     });
+                    WidgetTreeTextBox *widgetData = new WidgetTreeTextBox(this, false, 0, BaseFileIdx, BaseFileData.at(BaseFileIdx)->data.size(), value);
 
                     tree->setItemWidget(item->child(childIdx), 4 + BaseFileIdx, widgetData);
+
+                    QObject::connect(widgetData, &WidgetTreeTextBox::editingFinishedWithInts, [this, node](int firstInt, int secondInt) {
+                        BinMemWrite(node, firstInt, secondInt);
+                    });
 
                     SymbolDataType *newDataInfo = new SymbolDataType();
                     newDataInfo->node = node;
                     newDataInfo->WidgetData = widgetData;
                     BaseFileData.at(BaseFileIdx)->data.push_back(newDataInfo);
-                    //SymbolValIdx++;
-                   // childIdx++;
                 }
                 else if (FileBin_VARINFO_TYPE_UINT32 == node->DataType)
                 {
-                     std::vector<uint8_t> raw = ELFData->readSymbolFromELF(node->Addr, node->Size.at(0));
+                    std::vector<uint8_t> raw = ELFData->readSymbolFromELF(node->Addr, node->Size.at(0));
 
-                     uint32_t value = 0;
-                     if (raw.size() >= 2)
-                     {
+                    uint32_t value = 0;
+
+                    if (raw.size() >= 4)
+                    {
                         value = static_cast<uint32_t>(raw[0])
                             | (static_cast<uint32_t>(raw[1]) << 8)
                             | (static_cast<uint32_t>(raw[2]) << 16)
                             | (static_cast<uint32_t>(raw[3]) << 24);
-                     }
+                    }
 
-                     WidgetTreeTextBox *widgetData = new WidgetTreeTextBox(this, false, 0, BaseFileIdx, 0, value);
-
-                     QObject::connect(widgetData,
-                                      &WidgetTreeTextBox::editingFinishedWithInts,
-                                      [this, &widgetData](int firstInt, int secondInt)
-                                     {
-                                          BinMemWrite(firstInt, secondInt);
-                                      });
+                    WidgetTreeTextBox *widgetData = new WidgetTreeTextBox(this, false, 0, BaseFileIdx, BaseFileData.at(BaseFileIdx)->data.size(), value);
 
                     tree->setItemWidget(item->child(childIdx), 4 + BaseFileIdx, widgetData);
+
+                    QObject::connect(widgetData, &WidgetTreeTextBox::editingFinishedWithInts, [this, node](int firstInt, int secondInt) {
+                        BinMemWrite(node, firstInt, secondInt);
+                    });
 
                     SymbolDataType *newDataInfo = new SymbolDataType();
                     newDataInfo->node = node;
@@ -1363,29 +1316,28 @@ void BinCalibToolWidget::Calib_BaseFile_WidgetPopulate(FileBin_VarInfoType* node
                 }
                 else if (FileBin_VARINFO_TYPE_SINT32 == node->DataType)
                 {
-
-
                     std::vector<uint8_t> raw = ELFData->readSymbolFromELF(node->Addr, node->Size.at(0));
 
                     int32_t value = 0;
-                    if (raw.size() >= 2)
+
+                    if (raw.size() >= 4)
                     {
                         value = static_cast<int32_t>(raw[0])
-                        | (static_cast<int32_t>(raw[1]) << 8)
+                            | (static_cast<int32_t>(raw[1]) << 8)
                             | (static_cast<int32_t>(raw[2]) << 16)
                             | (static_cast<int32_t>(raw[3]) << 24);
                     }
 
-                    WidgetTreeTextBox *widgetData = new WidgetTreeTextBox(this, false, 0, BaseFileIdx, 0, value);
+                    WidgetTreeTextBox *widgetData = new WidgetTreeTextBox(this, false, 0, BaseFileIdx, BaseFileData.at(BaseFileIdx)->data.size(), value);
+
+                    tree->setItemWidget(item->child(childIdx), 4 + BaseFileIdx, widgetData);
 
                     QObject::connect(widgetData,
                                      &WidgetTreeTextBox::editingFinishedWithInts,
-                                     [this, &widgetData](int firstInt, int secondInt)
+                                     [this, node](int firstInt, int secondInt)
                                      {
-                                         BinMemWrite(firstInt, secondInt);
+                                         BinMemWrite(node, firstInt, secondInt);
                                      });
-
-                    tree->setItemWidget(item->child(childIdx), 4 + BaseFileIdx, widgetData);
 
                     SymbolDataType *newDataInfo = new SymbolDataType();
                     newDataInfo->node = node;
@@ -1409,21 +1361,20 @@ void BinCalibToolWidget::Calib_BaseFile_WidgetPopulate(FileBin_VarInfoType* node
                         std::memcpy(&value, &tmp, sizeof(float));
                     }
 
-                    WidgetTreeTextBox *widgetData = new WidgetTreeTextBox(this, false, 0, BaseFileIdx, 0, value);
+                    WidgetTreeTextBox *widgetData = new WidgetTreeTextBox(this, false, 0, BaseFileIdx, BaseFileData.at(BaseFileIdx)->data.size(), value);
 
-                    QObject::connect(widgetData, &WidgetTreeTextBox::editingFinishedWithInts, [this, &widgetData](int firstInt, int secondInt) {
-                        BinMemWrite(firstInt, secondInt);
-                    });
 
                     tree->setItemWidget(item->child(childIdx), 4+BaseFileIdx, widgetData);
+
+                    QObject::connect(widgetData, &WidgetTreeTextBox::editingFinishedWithInts, [this, node](int firstInt, int secondInt) {
+                        BinMemWrite(node, firstInt, secondInt);
+                    });
+
 
                     SymbolDataType *newDataInfo = new SymbolDataType();
                     newDataInfo->node = node;
                     newDataInfo->WidgetData = widgetData;
                     BaseFileData.at(BaseFileIdx)->data.push_back(newDataInfo);
-
-                   // SymbolValIdx++;
-                   // childIdx++;
                 }
                 else if (FileBin_VARINFO_TYPE_ENUM == node->DataType)
                 {
@@ -1431,11 +1382,11 @@ void BinCalibToolWidget::Calib_BaseFile_WidgetPopulate(FileBin_VarInfoType* node
 
                     if (node->Size.size() > 0)
                     {
-                     std::vector<uint8_t> raw = ELFData->readSymbolFromELF(node->Addr, node->Size.at(0));
+                        std::vector<uint8_t> raw = ELFData->readSymbolFromELF(node->Addr, node->Size.at(0));
                         val = raw.at(0);
                     }
 
-                    WidgetTreeComboBox *widgetData = new WidgetTreeComboBox(this, BaseFileIdx, 0, val);
+                    WidgetTreeComboBox *widgetData = new WidgetTreeComboBox(this, BaseFileIdx, BaseFileData.at(BaseFileIdx)->data.size(), val);
 
                     FileBin_DWARF_VarInfoType *enumNode = node->child->child->child;
 
@@ -1445,24 +1396,16 @@ void BinCalibToolWidget::Calib_BaseFile_WidgetPopulate(FileBin_VarInfoType* node
                         enumNode = enumNode->next;
                     }
 
-                    QObject::connect(widgetData, &WidgetTreeComboBox::editingFinishedWithInts, [this](int firstInt, int secondInt) {
-                        BinMemWrite(firstInt, secondInt);
-                    });
-
                     tree->setItemWidget(item->child(childIdx), 4 + BaseFileIdx, widgetData);
 
-                    //QTreeWidgetItem* childItem = item->child(childIdx);
-
-
-                    //childItem->setBackground(4 + BaseFileIdx, QBrush(QColor(255, 0, 0)));
+                    QObject::connect(widgetData, &WidgetTreeComboBox::editingFinishedWithInts, [this, node](int firstInt, int secondInt) {
+                        BinMemWrite(node, firstInt, secondInt);
+                    });
 
                     SymbolDataType *newDataInfo = new SymbolDataType();
                     newDataInfo->node = node;
                     newDataInfo->WidgetData = widgetData;
                     BaseFileData.at(BaseFileIdx)->data.push_back(newDataInfo);
-
-                   // SymbolValIdx++;
-                    //childIdx++;
                 }
                 else
                 {
@@ -1706,24 +1649,6 @@ void BinCalibToolWidget::Calib_BaseFile_AddNew(std::string filename, FileBin_Int
     }
 }
 
-static std::string TagToString(uint32_t tag)
-{
-    switch (tag)
-    {
-    case FILEBIN_DWARF_ELEMENT_COMPILE_UNIT:    return "COMPILE UNIT";
-    case FILEBIN_DWARF_ELEMENT_VOLATILE:        return "VOLATILE";
-    case FILEBIN_DWARF_ELEMENT_ENUMERATION:     return "ENUMERATION";
-    case FILEBIN_DWARF_ELEMENT_ARRAY:           return "ARRAY";
-    case FILEBIN_DWARF_ELEMENT_TYPEDEF:         return "TYPEDEF";
-    case FILEBIN_DWARF_ELEMENT_BASE_TYPE:       return "BASE TYPE";
-    case FILEBIN_DWARF_ELEMENT_STRUCTURE:       return "STRUCTURE";
-    case FILEBIN_DWARF_ELEMENT_MEMBER:          return "MEMBER";
-    case FILEBIN_DWARF_ELEMENT_VARIABLE:        return "VARIABLE";
-    case FILEBIN_DWARF_ELEMENT_CONSTANT:        return "CONSTANT";
-    default:                                    return "";
-    }
-}
-
 void BinCalibToolWidget::Calib_MasterStruct(FileBin_VarInfoType* node)
 {
     m_treeWidget->clear();  // clear existing items
@@ -1782,48 +1707,4 @@ void BinCalibToolWidget::Calib_MasterStruct(FileBin_VarInfoType* node)
 
     connect(m_treeWidget, &QTreeWidget::itemClicked,
             this, &BinCalibToolWidget::onTreeItemClicked);
-}
-
-#if(0)
-void BinCalibToolWidget::Parse_Master_CompilationUnit()
-{
-    this->UI_CompileUnitTree->clear();
-
-    FileBin_DWARF_VarInfoType* node = DWARFData->SymbolRoot;
-    uint8_t nodeCnt = 0;
-
-    while (node != nullptr)
-    {
-        QString path = QString::fromStdString(std::string(node->data.begin(), node->data.end()));
-        path = QDir::fromNativeSeparators(path);
-
-        QString fileName = path.mid(path.lastIndexOf('/') + 1);
-
-        // Skip non-matching entries if only compile units are not requested
-        if (!this->IsExpert && !fileName.endsWith("PBCfg.c")) {
-            node = node->next;
-            nodeCnt++;
-            continue;
-        }
-
-        this->UI_SymbolTree->setColumnHidden(1, !this->IsExpert);
-        this->UI_SymbolTree->setColumnHidden(2, !this->IsExpert);
-        this->UI_SymbolTree->setColumnHidden(3, !this->IsExpert);
-        this->UI_SymbolTree->setColumnHidden(4, !this->IsControlUnitReadActive);
-
-        QTreeWidgetItem* treeItem = new QTreeWidgetItem(this->UI_CompileUnitTree);
-        treeItem->setText(0, QString::number(nodeCnt));
-        treeItem->setText(1, fileName);
-
-        node = node->next;
-        nodeCnt++;
-    }
-}
-#endif
-
-
-void BinCalibToolWidget::handleApplyPatch() {
-    // Internal library logic to modify the HEX file
-    // ...
-    //emit calibrationFinished("output_calibrated.hex");
 }

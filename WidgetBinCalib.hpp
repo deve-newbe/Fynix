@@ -66,7 +66,8 @@ struct SymbolDataInfo {
 };
 
 
-class BinCalibToolWidget : public QWidget {
+class BinCalibToolWidget : public QWidget
+{
     Q_OBJECT
 
 public:
@@ -94,7 +95,7 @@ signals:
     void errorOccurred(const QString &message);
 
 private slots:
-    void handleApplyPatch();
+   // void handleApplyPatch();
     void onTreeItemClicked(QTreeWidgetItem* item, int column);
 
 private:
@@ -116,11 +117,11 @@ private:
     QTableWidget *m_tableWidget;  // Right: Hex/Values
     QSplitter    *m_splitter;     // Resizable divider
 
-
+    QTreeWidgetItem* copyItemWithoutColumn(QTreeWidgetItem* item, int colToRemove);
     void loadSymbolData(FileBin_VarInfoType* node, QTreeWidgetItem* item, uint32_t rowIdx, uint32_t colIdx, uint32_t BaseFileColIdx);
     void populateTreeWidgetRecursive(FileBin_DWARF_VarInfoType* node, QTreeWidgetItem* parentItem = nullptr);
    // void RefreshBaseFile(void);
-    void BinMemWrite(uint32_t BinIdx, uint32_t SymbolIdx);
+    void BinMemWrite(FileBin_VarInfoType *InfoNode, uint32_t BinIdx, uint32_t SymbolIdx);
 
 
 

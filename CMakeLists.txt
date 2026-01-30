@@ -55,6 +55,11 @@ else()
     endif()
 endif()
 
+if(WIN32)
+    set(APP_ICON_RESOURCE_WINDOWS "${CMAKE_CURRENT_SOURCE_DIR}/app.rc")
+    target_sources(Fynix PRIVATE "${APP_ICON_RESOURCE_WINDOWS}")
+endif()
+
 target_link_libraries(Fynix PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
 
 target_compile_definitions(Fynix PRIVATE
