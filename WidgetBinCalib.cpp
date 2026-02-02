@@ -59,12 +59,13 @@ WidgetTreeComboBox::WidgetTreeComboBox(QWidget *parent, int firstInt, int second
     this->Int2 = secondInt;
     this->DefaultValIdx = DefaultValIdx;
     this->isDummy = false;
-    this->Init = false;
+    this->TriggerDataChange = false;
 
     setStyleSheet(
         "QComboBox {"
         "  background: none;"
         "  border: none;"
+        "  border-left: 1px solid rgb(180,180,180);  /* matches QPen(Qt::gray, 1) */"
         "  padding: 0px;"
         "  margin: 0px;"
         "}"
@@ -92,7 +93,7 @@ WidgetTreeComboBox::WidgetTreeComboBox(QWidget *parent, int firstInt, int second
 
     // Connect the editingFinished signal to a lambda
     connect(this, &QComboBox::currentIndexChanged, this, [this]() {
-        if (this->Init)
+        if (this->TriggerDataChange)
         {
             emit editingFinishedWithInts(m_firstInt, m_secondInt);
         }
@@ -101,7 +102,7 @@ WidgetTreeComboBox::WidgetTreeComboBox(QWidget *parent, int firstInt, int second
     // Install event filter on the dropdown list
     view()->viewport()->installEventFilter(this);
 
-    this->Init = true;
+    this->TriggerDataChange = true;
 }
 
 void WidgetTreeComboBox::setDummy(bool dummy)
@@ -111,9 +112,9 @@ void WidgetTreeComboBox::setDummy(bool dummy)
 
 void WidgetTreeComboBox::setIdx(uint32_t Idx)
 {
-    this->Init = false;
+    this->TriggerDataChange = false;
     this->setCurrentIndex(Idx);
-    this->Init = true;
+    this->TriggerDataChange = true;
 }
 
 void WidgetTreeComboBox::wheelEvent( QWheelEvent * e)
@@ -179,21 +180,23 @@ void WidgetTreeComboBox::leaveEvent(QEvent *event)
     QComboBox::leaveEvent(event);
 }
 
-
 void WidgetTreeTextBox::RefreshState(void)
 {
     this->setProperty("valueChanged", (this->text().toFloat() != this->DefaultVal));
 
     this->setStyleSheet(R"(
         QLineEdit {
-          background: none;
-          border: none;
-          padding: 0px;
-          margin: 0px;
+            background: none;
+            border: none;
+            border-left: 1px solid rgb(180,180,180);  /* matches QPen(Qt::gray, 1) */
+            padding: 0px;
+            margin: 0px;
         }
+
         QLineEdit[valueChanged="true"] {
             font-weight: bold;
         }
+
         QLineEdit[valueChanged="false"] {
             font-weight: normal;
         }
@@ -206,20 +209,7 @@ WidgetTreeTextBox::WidgetTreeTextBox(QWidget *parent, bool showTable, uint32_t I
     this->Idx = Idx;
     this->DefaultVal = DefaultVal;
     this->Init = false;
-//this->blockSignals(true);
-    // Connect the editingFinished signal to a lambda
-    connect(this, &WidgetTreeTextBox::textEdited, this, [this](){
 
-
-        RefreshState();
-        if (this->Init)
-        {
-                emit editingFinishedWithInts(m_firstInt, m_secondInt);
-        }
-    });
-
-    //connect(this, &QLineEdit::tex, this, &WidgetTreeTextBox::onTextChanged);
-//this->blockSignals(false);
     // Center the text in the QLineEdit
     this->setAlignment(Qt::AlignCenter);
 
@@ -228,12 +218,22 @@ WidgetTreeTextBox::WidgetTreeTextBox(QWidget *parent, bool showTable, uint32_t I
     setFrame(false);
     setAttribute(Qt::WA_MacShowFocusRect, false);
 
-
-
     if (showTable)
     {
         this->setReadOnly(true);
         this->setCursor(Qt::PointingHandCursor);
+        RefreshState();
+    }
+    else
+    {
+        // Connect the editingFinished signal to a lambda
+        connect(this, &WidgetTreeTextBox::textEdited, this, [this](){
+            RefreshState();
+            if (this->Init)
+            {
+                emit editingFinishedWithInts(m_firstInt, m_secondInt);
+            }
+        });
     }
 
     this->Init = true;
@@ -379,7 +379,6 @@ class ClickableHeader : public QHeaderView
                 {
                     parentT->header()->setStretchLastSection(false);
                 }
-
             }
             parentT->header()->setStretchLastSection(true);
             update();
@@ -389,7 +388,6 @@ class ClickableHeader : public QHeaderView
         {
             m_columns.remove(Idx);
             parentT->setColumnCount(parentT->columnCount() -1);
-            //update();
         }
 
         // Show/hide a specific column by index
@@ -410,24 +408,17 @@ class ClickableHeader : public QHeaderView
 
             const ColumnInfo& col = m_columns[logicalIndex];
 
-            painter->save();
-
-
 
 
             constexpr int IconSize     = 20;
             constexpr int IconSpacing  = 2;
             constexpr int IconPadding  = 2;   // <-- THIS is the padding you want
 
+
             // --- Draw background for hovered icon only ---
             if (col.isFile)
             {
-                // --- Draw border around the whole header section ---
-               // QPen borderPen(Qt::gray, 1); // color & thickness
-               // painter->setPen(borderPen);
-                //painter->setBrush(Qt::NoBrush);
-                //painter->drawRect(rect.adjusted(0, 0, -1, -1)); // -1 because drawRect includes bottom/right edges
-
+                // --- Draw icons first ---
                 int xRight = rect.right() - IconSize - IconSpacing;
                 int yTop   = rect.center().y() - IconSize / 2;
 
@@ -436,7 +427,7 @@ class ClickableHeader : public QHeaderView
                 xRight -= IconSize + IconSpacing;
                 iconBgRects[1] = QRect(xRight, yTop, IconSize, IconSize);
 
-                // Draw hover background for icons
+                // Draw hover backgrounds
                 for (int i = 0; i < 2; ++i)
                 {
                     if (m_hoveredSection == logicalIndex && m_hoveredIconIndex == i)
@@ -447,37 +438,34 @@ class ClickableHeader : public QHeaderView
                     }
                 }
 
-                // Draw text centered in remaining space
-                int totalIconWidth = 2 * (IconSize + 2 + IconSpacing);
-                QRect textRect = rect.adjusted(0, 0, -totalIconWidth, 0);
-
-                QFontMetrics fm(painter->font());
-                QString elidedText = fm.elidedText(QString::fromStdString(col.Name),
-                                                   Qt::ElideRight,
-                                                   textRect.width());
-
-                painter->setPen(Qt::black);
-
-                // Center text horizontally in the available space
-                QRectF centeredTextRect = textRect;
-                painter->drawText(centeredTextRect, Qt::AlignVCenter | Qt::AlignHCenter, elidedText);
-
                 // Draw icons
                 QIcon iconClose(":/icon/close.svg");
                 QIcon iconSave(":/icon/save-file.svg");
 
-                QRect iconInner0 = iconBgRects[0].adjusted(
-                    IconPadding, IconPadding, -IconPadding, -IconPadding);
-
-                QRect iconInner1 = iconBgRects[1].adjusted(
-                    IconPadding, IconPadding, -IconPadding, -IconPadding);
+                QRect iconInner0 = iconBgRects[0].adjusted(IconPadding, IconPadding, -IconPadding, -IconPadding);
+                QRect iconInner1 = iconBgRects[1].adjusted(IconPadding, IconPadding, -IconPadding, -IconPadding);
 
                 iconClose.paint(painter, iconInner0, Qt::AlignCenter);
                 iconSave.paint(painter, iconInner1, Qt::AlignCenter);
+
+                // --- Draw text centered in full rect ---
+                QFontMetrics fm(painter->font());
+                QString elidedText = fm.elidedText(QString::fromStdString(col.Name),
+                                                   Qt::ElideRight,
+                                                   rect.width()); // full width
+
+                int textWidth = fm.horizontalAdvance(elidedText);
+
+                // Center text in the **entire rect**
+                int textX = rect.left() + (rect.width() - textWidth) / 2;
+
+                // Draw text vertically centered
+                QRectF drawRect(textX, rect.top(), textWidth, rect.height());
+                painter->setPen(Qt::black);
+                painter->drawText(drawRect, Qt::AlignVCenter, elidedText);
             }
             else
             {
-
                 // Fill background
                 QColor headerBgColor = QColor(250, 250, 250); // light grey
                 painter->fillRect(rect, headerBgColor);
@@ -490,7 +478,20 @@ class ClickableHeader : public QHeaderView
                 painter->drawText(rect, Qt::AlignVCenter | Qt::AlignHCenter, elidedText);
             }
 
-            painter->restore();
+            if (logicalIndex > 0)
+            {
+                painter->save();
+
+                QPen borderPen(Qt::gray, 1); // line color and thickness
+                painter->setPen(borderPen);
+                // Left edge
+                //painter->drawLine(rect.left() + 0.5, rect.top(), rect.left() + 0.5, rect.bottom());
+                //painter->drawLine(rect.left() + 1.5, rect.top(), rect.left() + 1.5, rect.bottom());
+
+                painter->fillRect(rect.left(), rect.top(), 1, rect.height(), Qt::gray);
+
+                painter->restore();  // restores pen, brush, etc.
+            }
         }
 
         int iconAtPosition(int logicalIndex, const QPoint& pos) const
@@ -644,125 +645,129 @@ QTreeWidget  *m_treeWidget;   // Left: Hierarchy/Symbols
 QTreeWidget *m_symbolTree;
 
 
-BinCalibToolWidget::BinCalibToolWidget(QWidget *parent, FileBin_ELF *elf) : QWidget(parent)
+BinCalibToolWidget::BinCalibToolWidget(QWidget* parent, FileBin_ELF* elf)
+    : QWidget(parent), ELFData(elf)
 {
-    this->ELFData = elf;
-    this->BaseFileData.clear();
-    IsViewAdvanced = false;
-    //this->BaseFileCnt = 0;
-    // 1. Main Vertical Layout
-    QVBoxLayout *mainLayout = new QVBoxLayout(this);
-    mainLayout->setContentsMargins(0, 0, 0, 0); // no margins
-    mainLayout->setSpacing(0);                   // no spacing
+    IsViewAdvanced = true;
+    BaseFileData.clear();
+
+    // 1. Main layout
+    QVBoxLayout* mainLayout = new QVBoxLayout(this);
+    mainLayout->setContentsMargins(0, 0, 0, 0);
+    mainLayout->setSpacing(0);
 
     // 2. Toolbar
     m_toolBar = new QToolBar("Calibration Tools", this);
     m_toolBar->setIconSize(QSize(20, 20));
     m_toolBar->setToolButtonStyle(Qt::ToolButtonIconOnly);
 
-    // Set spacing between buttons in the toolbar layout
     if (auto layout = m_toolBar->layout()) {
-        layout->setSpacing(8);   // space between buttons
-        layout->setContentsMargins(4, 2, 4, 2); // top, left, bottom, right
+        layout->setSpacing(8);
+        layout->setContentsMargins(4, 2, 4, 2);
     }
 
-    // 5. Apply padding via stylesheet (applies to all buttons in the toolbar)
     m_toolBar->setStyleSheet(R"(
         QToolButton {
-            padding: 2px;              /* adds space around the icon */
-            margin: 2px;               /* optional: space between buttons */
-            border: none;              /* flat look */
+            padding: 2px;
+            margin: 2px;
+            border: none;
             background-color: transparent;
-            border-radius: 4px;        /* Slightly rounded corners */
+            border-radius: 4px;
         }
         QToolButton:checked {
-            background-color: #80aee0; /* Fynix blue for checked buttons */
+            background-color: #80aee0;
             color: white;
         }
         QToolButton:hover {
-            background-color: #e6f0fa; /* subtle hover */
+            background-color: #e6f0fa;
         }
-
         QToolButton:checked:hover {
             background-color: #80aee0;
         }
     )");
 
-    // Add dummy actions
+    // Toolbar actions
     QAction* actionViewAdvanced = m_toolBar->addAction(QIcon(":/icon/view_advanced.svg"), "View advanced");
     QAction* actionLoadFile = m_toolBar->addAction(QIcon(":/icon/folder-open.svg"), "Open file...");
-    // QAction *reloadAct = m_toolBar->addAction("Info");
     actionViewAdvanced->setCheckable(true);
     actionViewAdvanced->setChecked(true);
-    // m_toolBar->addSeparator();
 
     mainLayout->addWidget(m_toolBar);
 
     // 3. Splitter
     m_splitter = new QSplitter(Qt::Horizontal, this);
-    m_splitter->setHandleWidth(2); // make splitter handle thin
+    m_splitter->setHandleWidth(2);
     m_splitter->setStyleSheet(R"(
-    QSplitter::handle {
-        background-color: #f3f3f3; /* thin line color */
-    }
-)");
+        QSplitter::handle {
+            background-color: #f3f3f3;
+        }
+    )");
 
-    // 4. Tree Widget
+    // 4. Tree Widget (left)
     m_treeWidget = new QTreeWidget(this);
-
-
-
     m_treeWidget->setHeaderLabels({"Calibratable files"});
-    m_treeWidget->setFrameShape(QFrame::NoFrame); // remove frame
-    m_treeWidget->setIndentation(12); // optional, remove tree indentation
+    m_treeWidget->setFrameShape(QFrame::NoFrame);
+    m_treeWidget->setIndentation(12);
     m_treeWidget->setFocusPolicy(Qt::NoFocus);
     m_treeWidget->setStyleSheet(
         "QTreeWidget { border: none; background: transparent; }"
+        "QTreeView::item { height: 22px; }"
         );
 
-    // 5. Table Widget
+    // 5. Symbol Tree (right)
     m_symbolTree = new QTreeWidget(this);
 
-
-    //ColumnHighlightTreeWidget* tree = new ColumnHighlightTreeWidget(this);
-    //tree->setColumnCount(6);
-
-    //auto overlay = new ColumnOverlay(m_rightTree, 4); // column index 3+
-    //overlay->show();
-
-    // Make the 3rd column (index 2) have a border
-    // m_rightTree->setItemDelegate(new ColumnBorderDelegate(4));
     header = new ClickableHeader(Qt::Horizontal, m_symbolTree);
+    m_symbolTree->setHeader(header);
 
-    header->onIconClicked = [this](int section, int icon, string filename){
-        qDebug() << "Icon clicked in section" << section << "icon" << icon;
+    header->addColumn("Symbol", 260);
+    header->addColumn("Address", 100);
+    header->addColumn("Size", 80);
+    header->addColumn("Type", 60);
+
+    m_symbolTree->setStyleSheet(R"(
+        QTreeWidget {
+            border: none;
+            background-color: white;
+            padding: 0px;
+            margin: 0px;
+        }
+        QTreeWidget::viewport {
+            padding: 0px;
+            margin: 0px;
+        }
+        QTreeWidget::item {
+            background-color: #E8E8E8;
+            height: 22px;
+            padding: 0px;
+            margin: 0px;
+        }
+        QTreeWidget::item:alternate {
+            background-color: #F5F5F5;
+            height: 22px;
+        }
+        QTreeWidget::item:hover {
+            background-color: #CCE4FF;
+        }
+    )");
+
+    m_symbolTree->setAlternatingRowColors(true);
+    m_symbolTree->setIndentation(12);
+    m_symbolTree->header()->setStretchLastSection(true);
+    m_symbolTree->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
+    m_symbolTree->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
+
+    // Connect header signals
+    header->onIconClicked = [this](int section, int icon, std::string filename){
         this->BaseFileData.at(section-4)->mem->Save(filename);
     };
 
-    header->onBinFileClose = [this](int section, int icon, string filename){
-        qDebug() << "Icon clicked in section" << section << "icon" << icon;
-        //this->BaseFileData.at(section-4)->mem->Save(filename);
+    header->onBinFileClose = [this](int section, int, std::string){
+        int columnToRemove = section;
 
-        int columnToRemove = section; // column index to remove
-        int oldCount = m_symbolTree->columnCount();
-        int newCount = oldCount - 1;
-
-
-
-
-        // Backup header labels
-        //QStringList newHeaders;
-        //for (int i = 0; i < oldCount; ++i)
-        //  {
-        //if (i == columnToRemove)
-        //     continue;
-        //     newHeaders << m_symbolTree->headerItem()->text(i);
-        // }
-
-        // Copy top-level items
+        // Backup top-level items
         QList<QTreeWidgetItem*> topLevelCopies;
-        for (int i = 0; i < m_symbolTree->topLevelItemCount(); ++i)
-        {
+        for (int i = 0; i < m_symbolTree->topLevelItemCount(); ++i) {
             QTreeWidgetItem* orig = m_symbolTree->topLevelItem(i);
             QTreeWidgetItem* copy = copyItemWithoutColumn(orig, columnToRemove);
             topLevelCopies.append(copy);
@@ -770,179 +775,59 @@ BinCalibToolWidget::BinCalibToolWidget(QWidget *parent, FileBin_ELF *elf) : QWid
 
         header->removeColumn(columnToRemove);
 
-        // Clear tree and set new column count
-        //m_symbolTree->clear();
-        //m_symbolTree->setColumnCount(newCount);
-        //m_symbolTree->setHeaderLabels(newHeaders);
-        //header = newHeaders;
-
-        // Reinsert items
+        // Reinsert copied items
         for (auto* item : topLevelCopies)
-        {
             m_symbolTree->addTopLevelItem(item);
-        }
 
-
-        // int columnToRemove = section; // assuming section is the column index
-
-        //if (columnToRemove >= 0 && columnToRemove < m_symbolTree->columnCount())
-        //{
-        // Hide or remove the column
-        // m_symbolTree->setColumnHidden(columnToRemove, true);
-
-        // Optional: update internal data if you track BaseFileData
-        if (columnToRemove >= 4) // if your data columns start at 4
-        {
+        // Update internal BaseFileData
+        if (columnToRemove >= 4) {
             int dataIdx = columnToRemove - 4;
             if (dataIdx < BaseFileData.size())
-            {
                 BaseFileData.erase(BaseFileData.begin() + dataIdx);
-            }
         }
-        // }
     };
 
-
-    m_symbolTree->setHeader(header);
-    header->addColumn("Symbol", 260);
-    header->addColumn("Address", 100);
-    header->addColumn("Size", 80);
-    header->addColumn("Type", 60);
-
-
-
-    //header->addColumn("Symbol", 260);
-    // m_rightTree->setColumnCount(3);
-    // m_rightTree->setHeaderLabels(headers);
-
-    // m_rightTree->header()->stretchLastSection();
-    // m_rightTree->setHeaderLabels(headers);
-    //m_rightTree->setColumnWidth(0,260);
-    // m_rightTree->setColumnWidth(1,80);
-    //m_rightTree->setColumnWidth(2,40);
-    //m_rightTree->setColumnWidth(3,60);
-    //m_rightTree->setColumnWidth(4,250);
-    //m_rightTree->setRootIsDecorated(false); // if you don’t want expandable tree icons
-
-    m_symbolTree->setStyleSheet(
-        "QTreeWidget {"
-        "    border: none;"
-        "    background-color: white;"        /* base color for even rows */
-        "}"
-        "QTreeWidget::item {"
-        "    background-color: #E8E8E8;"      /* even rows */
-        "    height: 22px;"
-        "}"
-        "QTreeWidget::item:alternate {"
-        "    background-color: #F5F5F5;"      /* odd rows */
-        "    height: 22px;"
-        "}"
-        "QTreeWidget::item:hover {"
-        "   background-color: #CCE4FF;"     /* remove default light blue hover */
-        "}"
-        );
-
-    m_symbolTree->setAlternatingRowColors(true);
-    //m_symbolTree->setSelectionBehavior(QAbstractItemView::SelectRows);
-    //m_symbolTree->setAllColumnsShowFocus(true);
-    m_symbolTree->setIndentation(12); // optional, remove tree indentation
-    m_symbolTree->header()->setStretchLastSection(true);
-
-    // Prevent horizontal resizing when vertical scrollbar appears
-    m_symbolTree->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
-    m_symbolTree->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
-    //m_rightTree->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    //m_rightTree->set
-
-
-    // for (int row = 0; row < m_rightTree->topLevelItemCount(); ++row)
-    // {
-    //     QTreeWidgetItem* item = m_rightTree->topLevelItem(row);
-    //     for (int col = 0; col < m_rightTree->columnCount(); ++col)
-    //     {
-    //         item->setBackground(col, QBrush(QColor(0,0,255,30)));
-    //     }
-    // }
-
-    // Add widgets to splitter
+    // 6. Add widgets to splitter
     m_splitter->addWidget(m_treeWidget);
     m_splitter->addWidget(m_symbolTree);
-
     m_splitter->setSizes({180, 600});
-    // Set stretch factors
     m_splitter->setStretchFactor(0, 1);
     m_splitter->setStretchFactor(1, 2);
 
-    // 6. Add splitter to layout
     mainLayout->addWidget(m_splitter);
 
+    // 7. Connect toolbar & tree signals
+    connect(m_treeWidget, &QTreeWidget::itemClicked, this, &BinCalibToolWidget::onTreeItemClicked);
 
+    connect(actionViewAdvanced, &QAction::triggered, this, [this, actionViewAdvanced](bool checked){
+        IsViewAdvanced = checked;
+        m_symbolTree->setColumnHidden(1, !IsViewAdvanced);
+        m_symbolTree->setColumnHidden(2, !IsViewAdvanced);
+        m_symbolTree->setColumnHidden(3, !IsViewAdvanced);
+    });
 
-    // 3. Connect the triggered signal to a slot or lambda
-    connect(actionViewAdvanced, &QAction::triggered, this, [this, actionViewAdvanced](bool checked)
-            {
+    connect(actionLoadFile, &QAction::triggered, this, [this](bool){
+        QString fileName = QFileDialog::getOpenFileName(
+            this,
+            tr("Open File"),
+            QString(),
+            tr("ELF Files (*.elf);;Intel HEX Files (*.hex);;All Files (*)")
+            );
 
-                IsViewAdvanced = checked;
-                m_symbolTree->setColumnHidden(1, !IsViewAdvanced);
-                m_symbolTree->setColumnHidden(2, !IsViewAdvanced);
-                m_symbolTree->setColumnHidden(3, !IsViewAdvanced);
-            });
+        if (fileName.isEmpty()) return;
 
-    connect(actionLoadFile, &QAction::triggered, this, [this, actionLoadFile](bool checked)
-            {
-                QString fileName = QFileDialog::getOpenFileName(
-                    this,
-                    tr("Open File"),
-                    QString(),                       // initial directory
-                    tr("ELF Files (*.elf);;Intel HEX Files (*.hex);;All Files (*)")            // filter
-                    );
-
-                if (fileName.isEmpty())
-                    return;
-
-                QFileInfo fileInfo(fileName);
-                // Get the file extension (e.g., "txt", "jpg")
-                QString extension = fileInfo.suffix().toLower();
-
-                // Check the file extension
-                if (extension == "elf")
-                {
-                    qDebug() << "Dropped master file:" << fileName;
-                    //loadElf(fileName.toStdString());
-
-
-                    //IsMasterFileLoaded = true;
-                }
-                else if (extension == "hex")
-                {
-                    FileBin_IntelHex_Memory *newBaseFile = new FileBin_IntelHex_Memory();
-                    newBaseFile->Load(fileName.toStdString().c_str(), LIB_FIRMWAREBIN_HEX);
-                    this->Calib_BaseFile_AddNew(fileName.toStdString(), newBaseFile);
-                    //qDebug() << "Dropped image file:" << fileName;
-                    ///if (!Mem2[this->BaseFileCnt].Load(filePath.toStdString().c_str(), LIB_FIRMWAREBIN_HEX))
-                    //{
-                    //    cout << "Error loading" << endl;
-                    //    return;
-                    // }
-                    //else
-                    //{
-                    //   cout << "Loading finished" << endl;
-                    // AddNewBaseFile(fileName.toStdString());
-
-                    //  Parse_Master_Symbol();
-                    // parseHexFile();
-                    // isFileLoaded = true;
-                    //}
-                }
-                else
-                {
-                    // qDebug() << "Dropped file with unsupported extension:" << filePath;
-                }
-
-
-            });
-
+        const QString ext = QFileInfo(fileName).suffix().toLower();
+        if (ext == "elf") {
+            qDebug() << "Dropped master file:" << fileName;
+            // loadElf(fileName.toStdString());
+        } else if (ext == "hex") {
+            auto* newBaseFile = new FileBin_IntelHex_Memory();
+            newBaseFile->Load(fileName.toStdString().c_str(), LIB_FIRMWAREBIN_HEX);
+            this->Calib_BaseFile_AddNew(fileName.toStdString(), newBaseFile);
+        }
+    });
 }
+
 
 QTreeWidgetItem* BinCalibToolWidget::copyItemWithoutColumn(QTreeWidgetItem* item, int colToRemove)
 {
@@ -1065,7 +950,7 @@ QTreeWidgetItem* BinCalibToolWidget::copyItemWithoutColumn(QTreeWidgetItem* item
         return;
     }
 
-    cout << "Writing memory BinFile type: " << (int)InfoNode->DataType <<  " Idx: " << BinIdx << " Symbol Idx: " << SymbolIdx << " Addr: 0x" << std::hex << InfoNode->Addr <<  endl;
+    //cout << "Writing memory BinFile type: " << (int)InfoNode->DataType <<  " Idx: " << BinIdx << " Symbol Idx: " << SymbolIdx << " Addr: 0x" << std::hex << InfoNode->Addr <<  endl;
 
     switch(this->BaseFileData.at(BinIdx)->data.at(SymbolIdx)->node->DataType)
     {
@@ -1456,7 +1341,8 @@ static QString extractDisplayName(const FileBin_DWARF_VarInfoType* node)
         std::string(node->data.begin(), node->data.end())
         );
 
-    if (node->elementType == FILEBIN_DWARF_ELEMENT_COMPILE_UNIT) {
+    if (node->elementType == FILEBIN_DWARF_ELEMENT_COMPILE_UNIT)
+    {
         name = QFileInfo(name).completeBaseName();
     }
 
@@ -1481,61 +1367,6 @@ static QString formatType(uint32_t typeId)
         case FileBin_VARINFO_TYPE__UNKNOWN:
         default:
             return QStringLiteral("");
-    }
-}
-
-void populateTreeWidgetRecursive(FileBin_DWARF_VarInfoType* node, QTreeWidget* treeWidget, QTreeWidgetItem* parentItem = nullptr)
-{
-    while (node)
-    {
-        // Skip qualifier nodes for the row but still recurse into children
-        if (!node->isQualifier)
-        {
-            // --- Prepare column texts ---
-            QString name = extractDisplayName(node); // your function
-            QString addr = QStringLiteral("0x") + QString::number(node->Addr, 16).toUpper();
-            QString size = formatSize(node->Size);   // your function
-            QString type = formatType(node->DataType);   // your function
-
-            // --- Create the tree item ---
-            QTreeWidgetItem* item = new QTreeWidgetItem();
-            item->setText(0, name);
-            item->setText(1, addr);
-            item->setTextAlignment(1, Qt::AlignCenter);
-            item->setText(2, size);
-            item->setTextAlignment(2, Qt::AlignCenter);
-            item->setText(3, type);
-            item->setTextAlignment(3, Qt::AlignCenter);
-
-            if (node->data.empty())
-            {
-                QFont f = item->font(0);
-                f.setItalic(true);
-                item->setFont(0, f);
-            }
-
-            // --- Add item to the tree ---
-            if (parentItem)
-                parentItem->addChild(item);
-            else
-                treeWidget->addTopLevelItem(item);
-
-            // --- Insert extra column widget (QLineEdit) ---
-            //QLineEdit* editBox = new QLineEdit(treeWidget);
-            //editBox->setText("23");               // default value
-            //treeWidget->setItemWidget(item, 3, editBox); // column 3
-
-            // --- Recurse into children ---
-            if (node->child)
-                populateTreeWidgetRecursive(node->child, treeWidget, item);
-        }
-        else if (node->child)
-        {
-            // Qualifier node: skip row but recurse into children
-            populateTreeWidgetRecursive(node->child, treeWidget, parentItem);
-        }
-
-        node = node->next; // move to sibling
     }
 }
 
@@ -1571,7 +1402,9 @@ void BinCalibToolWidget::populateTreeWidgetRecursive(FileBin_DWARF_VarInfoType* 
 
             // --- Add item to the tree ---
             if (parentItem)
+            {
                 parentItem->addChild(item);
+            }
             //else
                // treeWidget->addTopLevelItem(item);
 
@@ -1586,7 +1419,9 @@ void BinCalibToolWidget::populateTreeWidgetRecursive(FileBin_DWARF_VarInfoType* 
 
             // --- Recurse into children ---
             if (node->child)
+            {
                 populateTreeWidgetRecursive(node->child, item);
+            }
         }
         else if (node->child)
         {
@@ -1651,60 +1486,31 @@ void BinCalibToolWidget::Calib_BaseFile_AddNew(std::string filename, FileBin_Int
 
 void BinCalibToolWidget::Calib_MasterStruct(FileBin_VarInfoType* node)
 {
-    m_treeWidget->clear();  // clear existing items
-    this->selectedSymbolData = nullptr;
+    m_treeWidget->clear();
+    selectedSymbolData = nullptr;
+    SymbolData = node;
 
-    static QFont italicFont;
+    QFont italicFont;
     italicFont.setItalic(true);
 
-    this->SymbolData = node;
-
-    while (node)
+    for (FileBin_VarInfoType* cur = node; cur != nullptr; cur = cur->next)
     {
-        QString displayName;
-        if (node->data.empty()) {
-            displayName = "unnamed";
-        } else {
-            QString fullPath = QString::fromUtf8(reinterpret_cast<const char*>(node->data.data()), node->data.size());
-            QFileInfo fi(fullPath);
-            displayName = fi.fileName(); // only the file name, without path
+        QString displayName = "unnamed";
+
+        if (!cur->data.empty())
+        {
+            const QString fullPath = QString::fromUtf8(reinterpret_cast<const char*>(cur->data.data()), static_cast<int>(cur->data.size()));
+
+            displayName = QFileInfo(fullPath).fileName();
         }
 
-        //QString tagStr = QString::fromStdString(TagToString(node->elementType));
-
-        // Create a QTreeWidgetItem for this node
-        QTreeWidgetItem* item = new QTreeWidgetItem();
-        item->setText(0, displayName);  // column 0
-        //item->setText(1, tagStr);       // column 1
-
-        // Make read-only
+        QTreeWidgetItem* item = new QTreeWidgetItem(m_treeWidget);
+        item->setText(0, displayName);
         item->setFlags(item->flags() & ~Qt::ItemIsEditable);
 
-        if (node->data.empty())
-            item->setFont(0, italicFont);
-
-        // If node has children, add a dummy child to show the expand arrow
-        if (node->child)
+        if (cur->data.empty())
         {
-            //QTreeWidgetItem* placeholder = new QTreeWidgetItem();
-            //placeholder->setText(0, "Loading...");
-            //placeholder->setFlags(Qt::ItemIsEnabled);  // must be enabled to show expand arrow
-            //placeholder->setData(0, Qt::UserRole + 1, true); // mark as placeholder
-
-            //item->addChild(placeholder);
-
-            // Store pointer to actual child
-            //item->setData(0, Qt::UserRole, QVariant::fromValue(reinterpret_cast<void*>(node->child)));
+            item->setFont(0, italicFont);
         }
-
-        // Add top-level item to tree widget
-        m_treeWidget->addTopLevelItem(item);
-
-        node = node->next;
-
-
     }
-
-    connect(m_treeWidget, &QTreeWidget::itemClicked,
-            this, &BinCalibToolWidget::onTreeItemClicked);
 }

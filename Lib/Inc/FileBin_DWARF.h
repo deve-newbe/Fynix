@@ -163,8 +163,9 @@ class FileBin_DWARF
         uint32_t InfoOffset;
         uint32_t StrOffset;
         TreeElementType *DataRoot; /* data extracred from .debug_info thanks to CompilationUnit */
+        uint8_t HeaderSize_Byte;
 
-        FileBin_DWARF();
+        FileBin_DWARF(void);
 
         uint8_t Parse(std::string file_name, uint32_t Offset, uint32_t Len, uint32_t InfoOffset, uint32_t InfoLen, uint32_t StrOffset);
 

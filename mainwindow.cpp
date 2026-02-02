@@ -719,12 +719,6 @@ void MainWindow::loadElf(std::string file_name)
 
 
         TreeElementType* rootNode = dwarf->DataRoot;
-
-       // if (!rootNode)
-        {
-        //    return;
-        }
-
         QStandardItem* rootItem = model->invisibleRootItem();
 
         ui->treeView->setUpdatesEnabled(false);
@@ -732,12 +726,6 @@ void MainWindow::loadElf(std::string file_name)
         ui->treeView->setUpdatesEnabled(true);
 
         FileBin_VarInfoType* rootNodeSymbol = dwarf->SymbolRoot;
-
-        //if (!rootNodeSymbol)
-        {
-        //    return;
-        }
-
         QStandardItem* rootItemSymbol = modelSymbol->invisibleRootItem();
 
         ui->treeView_2->setUpdatesEnabled(false);
@@ -820,9 +808,6 @@ void MainWindow::loadElf(std::string file_name)
     beautifyTreeView(ui, ui->treeView_2);
 }
 
-
-
-
 void MainWindow::AddNewBaseFile(QString Filename)
 {
     FileBin_IntelHex_Memory *newBaseFile = new FileBin_IntelHex_Memory();
@@ -834,12 +819,7 @@ void MainWindow::on_actionOpen_triggered(bool checked)
 {
     Q_UNUSED(checked);
 
-    QString fileNameQt = QFileDialog::getOpenFileName(
-        this,
-        tr("Open ELF File"),
-        QString(),                       // default directory
-        tr("ELF Files (*.elf);;All Files (*)")
-        );
+    QString fileNameQt = QFileDialog::getOpenFileName(this, tr("Open ELF File"), QString(), tr("ELF Files (*.elf);;All Files (*)"));
 
     if (fileNameQt.isEmpty())
     {
@@ -861,61 +841,41 @@ void MainWindow::dragEnterEvent(QDragEnterEvent *event)
     }
 }
 
-void MainWindow::dragMoveEvent(QDragMoveEvent *event)
+void MainWindow::dropEvent(QDropEvent* event)
 {
-    // Accept the drag move event (optional)
-    event->acceptProposedAction();
-}
-
-void MainWindow::dropEvent(QDropEvent *event)
-{
-    // Handle the dropped data
-    if (event->mimeData()->hasUrls())
+    const QMimeData* mime = event->mimeData();
+    if (!mime || !mime->hasUrls())
     {
-        // Handle file drops
-        for (const QUrl &url : event->mimeData()->urls())
+        event->ignore();
+        return;
+    }
+
+    for (const QUrl& url : mime->urls())
+    {
+        if (!url.isLocalFile())
+            continue;
+
+        const QString filePath = url.toLocalFile();
+        const QFileInfo fileInfo(filePath);
+        const QString extension = fileInfo.suffix().toLower();
+
+        if (extension == "elf")
         {
-            QString filePath = url.toLocalFile(); // Get the local file path
-            QFileInfo fileInfo(filePath); // Create a QFileInfo object
-
-            // Get the file extension (e.g., "txt", "jpg")
-            QString extension = fileInfo.suffix().toLower();
-
-            // Check the file extension
-            if (extension == "elf")
-            {
-                qDebug() << "Dropped master file:" << filePath;
-                loadElf(filePath.toStdString());
-
-
-                //IsMasterFileLoaded = true;
-            }
-            else if (extension == "hex")
-            {
-                qDebug() << "Dropped image file:" << filePath;
-                ///if (!Mem2[this->BaseFileCnt].Load(filePath.toStdString().c_str(), LIB_FIRMWAREBIN_HEX))
-                //{
-                //    cout << "Error loading" << endl;
-                //    return;
-               // }
-                //else
-                //{
-                 //   cout << "Loading finished" << endl;
-                    AddNewBaseFile(filePath);
-
-                  //  Parse_Master_Symbol();
-                   // parseHexFile();
-                   // isFileLoaded = true;
-                //}
-            }
-            else
-            {
-                qDebug() << "Dropped file with unsupported extension:" << filePath;
-            }
+            qDebug() << "Dropped master file:" << filePath;
+            loadElf(filePath.toStdString());
+        }
+        else if (extension == "hex")
+        {
+            qDebug() << "Dropped image file:" << filePath;
+            AddNewBaseFile(filePath);
+        }
+        else
+        {
+            qDebug() << "Unsupported file dropped:" << filePath;
         }
     }
 
-    event->acceptProposedAction(); // Accept the drop operation
+    event->acceptProposedAction();
 }
 
 void MainWindow::dragLeaveEvent(QDragLeaveEvent *event)

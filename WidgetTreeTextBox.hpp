@@ -69,7 +69,6 @@ signals:
 public:
     uint32_t Int1, Int2;
     float DefaultVal;
-   // BinCalibToolWidget *pDialog;
     bool showTable;
     uint32_t Idx;
     void (*pChangeCbk)(void * parent_class, int row, int col);

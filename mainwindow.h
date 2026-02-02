@@ -61,7 +61,6 @@ class MainWindow : public QMainWindow
 
     protected:
         void dragEnterEvent(QDragEnterEvent *event) override;
-        void dragMoveEvent(QDragMoveEvent *event) override;
         void dropEvent(QDropEvent *event) override;
         void dragLeaveEvent(QDragLeaveEvent *event) override;
 

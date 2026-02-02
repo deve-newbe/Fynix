@@ -68,7 +68,7 @@ class WidgetTreeComboBox : public QComboBox
 
         int Int1, Int2;
         uint32_t DefaultValIdx;
-        bool isDummy, Init;
+        bool isDummy, TriggerDataChange;
 
         using QComboBox::QComboBox; // Inherit constructors
 
