@@ -98,13 +98,13 @@ class FileBin_IntelHex_Memory
         bool GetMemPageOffset(uint32_t *pPage, uint32_t *pOffset, uint32_t Address);
 
 
-        uint8_t ReadMem_uint8(uint8_t *buffer, uint32_t Length, uint32_t Address);
-        int8_t ReadMem_sint8(uint8_t *buffer, uint32_t Length, uint32_t Address);
-        uint16_t ReadMem_uint16(uint8_t *buffer, uint32_t Length, uint32_t Address);
-        int16_t ReadMem_sint16(uint8_t *buffer, uint32_t Length, uint32_t Address);
+        uint8_t ReadMem_uint8(uint32_t Address);
+        int8_t ReadMem_sint8(uint32_t Address);
+        uint16_t ReadMem_uint16(uint32_t Address);
+        int16_t ReadMem_sint16(uint32_t Address);
         uint32_t ReadMem_uint32(uint32_t Address);
-        int32_t ReadMem_sint32(uint8_t *buffer, uint32_t Length, uint32_t Address);
-        float ReadMem_float32(uint8_t *buffer, uint32_t Length, uint32_t Address);
+        int32_t ReadMem_sint32(uint32_t Address);
+        float ReadMem_float32(uint32_t Address);
 
         void WriteMem_float32(uint32_t Address, float value);
         void WriteMem_uint16(uint32_t Address, uint16_t value);

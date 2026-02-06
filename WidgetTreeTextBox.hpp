@@ -58,13 +58,15 @@ private:
     bool Init;
 
 
-    virtual void mouseReleaseEvent(QMouseEvent *e);
+    virtual void mouseReleaseEvent(QMouseEvent *e) override;
+    virtual void mousePressEvent(QMouseEvent *event) override;
     void RefreshState(void);
 
 signals:
     void editingFinishedWithInts(int firstInt, int secondInt);
     void mouseReleasedWithInts(int firstInt, int secondInt);
-
+    void clickedOrFocused();
+    void focusLost();
 
 public:
     uint32_t Int1, Int2;
@@ -82,6 +84,12 @@ public:
 
     WidgetTreeTextBox(QWidget *parent, bool showTable, uint32_t Idx, int firstInt, int secondInt, float DefaultVal);// : QLineEdit(parent);
 
+
+protected:
+    // Override focus events
+   // void focusInEvent(QFocusEvent* event) override;
+    //void enterEvent(QEvent* event) override;
+   // void focusOutEvent(QFocusEvent* event) override;
 
 };
 

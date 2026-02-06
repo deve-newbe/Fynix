@@ -45,6 +45,7 @@
 #include "FileBin_ELF.h"
 #include "FileBin_IntelHex.hpp"
 #include "WidgetTreeTextBox.hpp"
+#include "WidgetTable.hpp"
 
 // Data structure to pass info into the library
 struct DwarfSymbol {
@@ -65,6 +66,14 @@ struct SymbolDataInfo {
     std::string filename;
 };
 
+struct DataValue {
+    enum class Type { Int32, Float32 } type;
+    union {
+        int32_t i;
+        float f;
+    };
+};
+
 
 class BinCalibToolWidget : public QWidget
 {
@@ -79,7 +88,10 @@ public:
     void AddNewBaseFile(std::string filename);
 
 
+    void GenerateTable(uint8_t BaseFileIdx, FileBin_VarInfoType* node);
 
+
+    DataValue readMem(uint32_t BaseFileIdx, uint32_t Addr, FileBin_IntelHex_Memory *newFileBin);
 
     void Calib_MasterStruct(FileBin_VarInfoType* node); // Generate master struct of source ifles
     void Calib_MasterSymbolShow(QTreeWidgetItem* item, int column); // Add master symbol list according to selected file
@@ -88,6 +100,7 @@ public:
     void Calib_BaseFile_DataParse(FileBin_VarInfoType* node, uint32_t BaseFileIdx, FileBin_IntelHex_Memory *newFileBin); // Parse base file into widgets
     void Calib_BaseFile_Remove(uint32_t BaseFileIdx); // Add new base file
 
+    void hideTable(void);
 
 signals:
     // Signal emitted when the library finishes a task
@@ -106,6 +119,9 @@ private:
     //std::vector<FileBaseInfo> BaseFile;
     bool IsMasterFileLoaded;
     vector<SymbolDataInfo *> BaseFileData;
+    QWidget* tableContainer;
+    WidgetTable* m_tableWidgetCalib;
+    QSplitter* rightSplitter;
     //uint32_t BaseFileCnt;
 
 

@@ -46,17 +46,18 @@
 #include <QScrollBar>
 #include <QEvent>
 #include <QRegularExpression>
+#include <QClipboard>
 
 #include "WidgetTreeTextBox.hpp"
 #include "WidgetTreeComboBox.hpp"
 
-WidgetTreeComboBox::WidgetTreeComboBox(QWidget *parent, int firstInt, int secondInt, uint32_t DefaultValIdx) : QComboBox(parent), m_firstInt(firstInt), m_secondInt(secondInt)
+WidgetTreeComboBox::WidgetTreeComboBox(QWidget *parent, int firstInt, int secondInt, uint32_t DefaultValIdx) : QComboBox(parent)
 {
     // Enable hover tracking for the dropdown list
     view()->setMouseTracking(true);
 
-    this->Int1 = firstInt;
-    this->Int2 = secondInt;
+    this->m_firstInt = firstInt;
+    this->m_secondInt = secondInt;
     this->DefaultValIdx = DefaultValIdx;
     this->isDummy = false;
     this->TriggerDataChange = false;
@@ -210,13 +211,21 @@ WidgetTreeTextBox::WidgetTreeTextBox(QWidget *parent, bool showTable, uint32_t I
     this->DefaultVal = DefaultVal;
     this->Init = false;
 
+
+    //setFocusPolicy(Qt::ClickFocus); // normal click/focus behavior
+    setFocusPolicy(Qt::NoFocus);
+
+    setMouseTracking(false);          // mouse move alone won't trigger editing
     // Center the text in the QLineEdit
     this->setAlignment(Qt::AlignCenter);
 
     // Appearance
-    setAlignment(Qt::AlignCenter);
     setFrame(false);
     setAttribute(Qt::WA_MacShowFocusRect, false);
+
+    QRegularExpressionValidator *validator = new QRegularExpressionValidator(QRegularExpression(R"(^\d*\.?\d*$)"), this);
+
+    setValidator(validator);
 
     if (showTable)
     {
@@ -257,73 +266,129 @@ void WidgetTreeTextBox::SetVal(const QString &text)
     RefreshState();
 }
 
-void WidgetTreeTextBox::mouseReleaseEvent(QMouseEvent *e)
+void WidgetTreeTextBox::mousePressEvent(QMouseEvent *event)
+{
+    emit clickedOrFocused();
+}
+
+void WidgetTreeTextBox::mouseReleaseEvent(QMouseEvent* event)
+{
+    // Give focus explicitly when the user releases the mouse
+    this->setFocus(Qt::MouseFocusReason);
+    // Then call the base class so cursor and editing work normally
+    QLineEdit::mouseReleaseEvent(event);
+}
+
+
+void WidgetTable::keyPressEvent(QKeyEvent* event)
 {
 
-#if(0)
-    editFlag = true;
-    IntVer = this->Int1;
-    newTable->setRowCount(0);
-    newTable->setColumnCount(0);
-    cout << "mouse released " << (int)DataMemInfo[this->Int1][this->Int2].Length.size() << endl;
-
-    selectedTableIdx = this->Idx;
-    uint32_t yLen = 1;
-    if (DataMemInfo[this->Int1][this->Idx].Length.size() > 2)
+    // Example: only allow numbers, decimal, and backspace
+    if ((event->key() >= Qt::Key_0 && event->key() <= Qt::Key_9) || event->key() == Qt::Key_Period || event->key() == Qt::Key_Backspace)
     {
-        cout << "two dim array" << endl;
-        yLen = DataMemInfo[this->Int1][this->Idx].Length.at(1);
+        QTableWidget::keyPressEvent(event); // pass to base
     }
-
-    this->yLen = yLen;
-
-    // cout << "ylen " << (int)yLen << " xLen " << DataMemInfo[this->Idx].Length.at(0) << endl;
-
-    if (this->showTable)
+    else if (event->key() == Qt::Key_C && event->modifiers() & Qt::ControlModifier)
     {
-        newTable->setVisible(true);
-        for (uint32_t j = 0 ; j < yLen ; j++)
+
+        QItemSelectionModel* sel = selectionModel();
+        if (!sel) return;
+
+        QModelIndexList indexes = sel->selectedIndexes();
+        if (indexes.isEmpty()) return;
+
+        // Determine the range of rows and columns
+        int minRow = rowCount(), maxRow = 0;
+        int minCol = columnCount(), maxCol = 0;
+
+        for (const QModelIndex& idx : indexes)
         {
-            newTable->insertRow(0);
-            newTable->setRowHeight(0,20);
+            if (idx.row() < minRow) minRow = idx.row();
+            if (idx.row() > maxRow) maxRow = idx.row();
+            if (idx.column() < minCol) minCol = idx.column();
+            if (idx.column() > maxCol) maxCol = idx.column();
         }
 
-        for (uint32_t i = 0 ; i < DataMemInfo[this->Int1][this->Idx].Length.at(0) ; i++)
+        // Build tab-separated text
+        QString clipboardText;
+        for (int r = minRow; r <= maxRow; ++r)
         {
-            newTable->insertColumn(i);
-            newTable->setColumnWidth(i, 60);
-            //cout << "address " << std::hex << (int)DataMemInfo[this->Idx].Address + i*2 << endl;
-            //this->pDialog->ui_Dialog_DWARFViewer->tableWidget->setItem(0, i, new QTableWidgetItem(QString::number(Mem2.ReadMem_uint16(0, 0, DataMemInfo[this->Idx].Address + (i*2)))));
+            QStringList rowValues;
+            for (int c = minCol; c <= maxCol; ++c)
+            {
+                QString value;
 
+                if (auto editor = qobject_cast<WidgetTreeTextBox*>(cellWidget(r, c)))
+                    value = editor->text();
+                else if (auto itm = this->item(r, c))
+                    value = itm->text();
+
+                rowValues << value;
+            }
+            clipboardText += rowValues.join('\t');
+            if (r < maxRow) clipboardText += "\r\n";
         }
 
-        newTable->loadData(this->Int1, this->Idx, yLen);
-        newTable->parseData();
-        cout << "table loaded TRUE" << endl;
-        newTable->isTableLoaded = true;
-        //connect(newTable, SIGNAL(cellChanged(int, int) ),this, SLOT(on_table_itemChanged(int, int)) );
-        //  parseTable();
-        // }
+        // Copy to system clipboard
+        QClipboard* cp = QApplication::clipboard();
+        cp->setText(clipboardText);
 
+        // Optionally, store in memory as a 2D vector
+        copiedData.clear();
+        copiedData.resize(maxRow - minRow + 1);
+        for (int r = 0; r <= maxRow - minRow; ++r)
+        {
+            copiedData[r].resize(maxCol - minCol + 1);
+            for (int c = 0; c <= maxCol - minCol; ++c)
+            {
+                if (auto editor = qobject_cast<WidgetTreeTextBox*>(cellWidget(minRow + r, minCol + c)))
+                    copiedData[r][c] = editor->text();
+                else if (auto item = this->item(minRow + r, minCol + c))
+                    copiedData[r][c] = item->text();
+                else
+                    copiedData[r][c] = "";
+            }
+        }
 
+        return;
 
-        // this->pDialog->on_table_itemChanged()
+    }
+    else if (event->modifiers() & Qt::ControlModifier && event->key() == Qt::Key_V)
+    {
 
+        QString text = QApplication::clipboard()->text();
+        QStringList rows = text.split(QRegularExpression("\r\n|\n"), Qt::SkipEmptyParts);
+
+        int startRow = currentIndex().row();
+        int startCol = currentIndex().column();
+
+        for (int r = 0; r < rows.size(); ++r)
+        {
+            QStringList cols = rows[r].split('\t');
+            for (int c = 0; c < cols.size(); ++c)
+            {
+                int row = startRow + r;
+                int col = startCol + c;
+                if (row < rowCount() && col < columnCount())
+                {
+                    // Update WidgetTreeTextBox if present
+                    if (auto editor = qobject_cast<WidgetTreeTextBox*>(cellWidget(row, col)))
+                        editor->setText(cols[c]);
+                    else
+                        setItem(row, col, new QTableWidgetItem(cols[c]));
+                }
+            }
+        }
+        return;
 
     }
     else
     {
-        newTable->setVisible(false);
-        // disconnect(newTable, SIGNAL(cellChanged(int, int) ),this, SLOT(on_table_itemChanged(int, int)) );
-        cout << "table loaded FALSE" << endl;
-        newTable->isTableLoaded = false;
-
+        // ignore other keys
+        event->ignore();
     }
-
-    //connect(this->pDialog->ui_Dialog_DWARFViewer->tableWidget, SIGNAL(cellChanged(int, int) ),this, SLOT(Dialog_DWARFViewer::on_table_itemChanged(int, int)) );
-#endif
-    QLineEdit::mouseReleaseEvent(e);
 }
+
 
 // Custom header class to add a clickable icon
 class ClickableHeader : public QHeaderView
@@ -345,7 +410,7 @@ class ClickableHeader : public QHeaderView
         int m_hoveredSection = -1;
         int m_hoveredIconIndex = -1;
         QVector<ColumnInfo> m_columns;
-        QTreeWidget *parentT;
+        QTreeWidget *WidgetParent;
 
     public:
 
@@ -357,10 +422,7 @@ class ClickableHeader : public QHeaderView
 
         ClickableHeader(Qt::Orientation orientation, QWidget *parent = nullptr) : QHeaderView(orientation, parent)
         {
-            parentT = (QTreeWidget *)parent;
-            // Enable click events on the header
-            setSectionsClickable(true);
-            setMouseTracking(true);
+            WidgetParent = (QTreeWidget *)parent;
             m_hoveredSection = -1;
             m_columns.clear();
         }
@@ -368,34 +430,34 @@ class ClickableHeader : public QHeaderView
         void addColumn(const QString& Name, uint32_t Size, bool isFile = false)
         {
             m_columns.push_back({Name.toStdString(), Size, isFile});
-            if (parentT)
+            if (WidgetParent)
             {
                 int colIndex = static_cast<int>(m_columns.size() - 1); // index of new column
 
-                parentT->setColumnCount(m_columns.size());          // update column count
-                parentT->setColumnWidth(colIndex, Size);
+                WidgetParent->setColumnCount(m_columns.size());          // update column count
+                WidgetParent->setColumnWidth(colIndex, Size);
                 // Optional: stretch the last column
-                if (colIndex == parentT->columnCount() - 1)
+                if (colIndex == WidgetParent->columnCount() - 1)
                 {
-                    parentT->header()->setStretchLastSection(false);
+                    WidgetParent->header()->setStretchLastSection(false);
                 }
             }
-            parentT->header()->setStretchLastSection(true);
+            WidgetParent->header()->setStretchLastSection(true);
             update();
         }
 
         void removeColumn(uint32_t Idx)
         {
             m_columns.remove(Idx);
-            parentT->setColumnCount(parentT->columnCount() -1);
+            WidgetParent->setColumnCount(WidgetParent->columnCount() -1);
         }
 
         // Show/hide a specific column by index
         void setColumnVisible(int index, bool visible)
         {
-            if (parentT && index >= 0 && index < parentT->columnCount())
+            if (WidgetParent && index >= 0 && index < WidgetParent->columnCount())
             {
-                parentT->setColumnHidden(index, !visible);
+                WidgetParent->setColumnHidden(index, !visible);
             }
         }
 
@@ -644,7 +706,6 @@ bool IsViewAdvanced;
 QTreeWidget  *m_treeWidget;   // Left: Hierarchy/Symbols
 QTreeWidget *m_symbolTree;
 
-
 BinCalibToolWidget::BinCalibToolWidget(QWidget* parent, FileBin_ELF* elf)
     : QWidget(parent), ELFData(elf)
 {
@@ -756,6 +817,10 @@ BinCalibToolWidget::BinCalibToolWidget(QWidget* parent, FileBin_ELF* elf)
     m_symbolTree->header()->setStretchLastSection(true);
     m_symbolTree->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
     m_symbolTree->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
+    m_symbolTree->setFocusPolicy(Qt::NoFocus);
+    //m_symbolTree->setEditTriggers(QAbstractItemView::SelectedClicked | QAbstractItemView::EditKeyPressed);
+
+    m_symbolTree->setEditTriggers(QAbstractItemView::NoEditTriggers);
 
     // Connect header signals
     header->onIconClicked = [this](int section, int icon, std::string filename){
@@ -787,9 +852,58 @@ BinCalibToolWidget::BinCalibToolWidget(QWidget* parent, FileBin_ELF* elf)
         }
     };
 
+    // --- Right vertical splitter: symbol tree on top, table + toolbar below ---
+    rightSplitter = new QSplitter(Qt::Vertical);
+
+    // 1️⃣ Symbol tree on top
+    rightSplitter->addWidget(m_symbolTree);
+
+    // 2️⃣ Table container with toolbar
+    tableContainer = new QWidget();
+    QVBoxLayout* tableLayout = new QVBoxLayout(tableContainer);
+    tableLayout->setContentsMargins(0, 0, 0, 0);
+    tableLayout->setSpacing(0);
+
+    // Toolbar
+    QToolBar* tableToolBar = new QToolBar("Table Tools", tableContainer);
+    tableToolBar->setIconSize(QSize(18, 18));
+    tableToolBar->setToolButtonStyle(Qt::ToolButtonIconOnly);
+    tableLayout->addWidget(tableToolBar);
+
+    QAction *addRowAction = new QAction(QIcon(":/icon/add_row.svg"), "X", this);
+    connect(addRowAction, &QAction::triggered, this, &BinCalibToolWidget::hideTable);
+
+    // spacer pushes following actions to the right
+    QWidget *spacer = new QWidget(tableToolBar);
+    spacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+
+    tableToolBar->addWidget(spacer);
+    tableToolBar->addAction(addRowAction);
+    // Table
+    m_tableWidgetCalib = new WidgetTable(tableContainer);
+    m_tableWidgetCalib->setRowCount(0);
+    m_tableWidgetCalib->setColumnCount(0); // adjust as needed
+    m_tableWidgetCalib->horizontalHeader()->setDefaultSectionSize(60); // width
+    m_tableWidgetCalib->verticalHeader()->setDefaultSectionSize(20);   // height
+    tableLayout->addWidget(m_tableWidgetCalib);
+
+    // Initially hide table + toolbar if desired
+    tableContainer->setVisible(false); // or false
+
+    rightSplitter->addWidget(tableContainer);
+
+    // Optional: set initial sizes
+    rightSplitter->setSizes({300, 200}); // tree 300px, table 200px
+
+    // --- Main horizontal splitter ---
+    m_splitter->addWidget(m_treeWidget);     // left tree
+    m_splitter->addWidget(rightSplitter);    // right vertical splitter
+
+
+
     // 6. Add widgets to splitter
-    m_splitter->addWidget(m_treeWidget);
-    m_splitter->addWidget(m_symbolTree);
+   // m_splitter->addWidget(m_treeWidget);
+    //m_splitter->addWidget(m_symbolTree);
     m_splitter->setSizes({180, 600});
     m_splitter->setStretchFactor(0, 1);
     m_splitter->setStretchFactor(1, 2);
@@ -829,6 +943,11 @@ BinCalibToolWidget::BinCalibToolWidget(QWidget* parent, FileBin_ELF* elf)
 }
 
 
+void BinCalibToolWidget::hideTable(void)
+{
+    tableContainer->setVisible(false);
+}
+
 QTreeWidgetItem* BinCalibToolWidget::copyItemWithoutColumn(QTreeWidgetItem* item, int colToRemove)
 {
     // Create new item with one less column
@@ -860,67 +979,138 @@ QTreeWidgetItem* BinCalibToolWidget::copyItemWithoutColumn(QTreeWidgetItem* item
     return newItem;
 }
 
+
+#if(0)
+DataValue BinCalibToolWidget::readMem(uint32_t BaseFileIdx, uint32_t Addr, FileBin_IntelHex_Memory *newFileBin)
+{
+    const vector<SymbolDataType*> baseData = this->BaseFileData.at(BaseFileIdx)->data;
+
+    switch (baseData.at(i)->node->DataType)
+    {
+    case FileBin_VARINFO_TYPE_UINT8:
+    {
+        WidgetTreeTextBox *lineedit = (WidgetTreeTextBox *)baseData.at(i)->WidgetData;
+        lineedit->SetVal(QString::number(newFileBin->ReadMem_uint8(baseData.at(i)->node->Addr)));
+        break;
+    }
+    case FileBin_VARINFO_TYPE_SINT8:
+    {
+        WidgetTreeTextBox *lineedit = (WidgetTreeTextBox *)baseData.at(i)->WidgetData;
+        lineedit->SetVal(QString::number(newFileBin->ReadMem_sint8(baseData.at(i)->node->Addr)));
+        break;
+    }
+    case FileBin_VARINFO_TYPE_UINT16:
+    {
+        WidgetTreeTextBox *lineedit = (WidgetTreeTextBox *)baseData.at(i)->WidgetData;
+        lineedit->SetVal(QString::number(newFileBin->ReadMem_uint16(baseData.at(i)->node->Addr)));
+        break;
+    }
+    case FileBin_VARINFO_TYPE_SINT16:
+    {
+        WidgetTreeTextBox *lineedit = (WidgetTreeTextBox *)baseData.at(i)->WidgetData;
+        lineedit->SetVal(QString::number(newFileBin->ReadMem_sint16(baseData.at(i)->node->Addr)));
+        break;
+    }
+    case FileBin_VARINFO_TYPE_UINT32:
+    {
+        WidgetTreeTextBox *lineedit = (WidgetTreeTextBox *)baseData.at(i)->WidgetData;
+        lineedit->SetVal(QString::number(newFileBin->ReadMem_uint32(baseData.at(i)->node->Addr)));
+        break;
+    }
+    case FileBin_VARINFO_TYPE_SINT32:
+    {
+        WidgetTreeTextBox *lineedit = (WidgetTreeTextBox *)baseData.at(i)->WidgetData;
+        lineedit->SetVal(QString::number(newFileBin->ReadMem_sint32(baseData.at(i)->node->Addr)));
+        break;
+    }
+    case FileBin_VARINFO_TYPE_FLOAT32:
+    {
+        WidgetTreeTextBox *lineedit = (WidgetTreeTextBox *)baseData.at(i)->WidgetData;
+        lineedit->SetVal(QString::number(newFileBin->ReadMem_float32(baseData.at(i)->node->Addr)));
+        break;
+    }
+    case FileBin_VARINFO_TYPE_ENUM:
+    {
+        WidgetTreeComboBox *dataWidget = (WidgetTreeComboBox *)baseData.at(i)->WidgetData;
+        dataWidget->setIdx(newFileBin->ReadMem_uint8(baseData.at(i)->node->Addr));
+        break;
+    }
+    default:
+    {
+        break;
+    }
+    }
+}
+#endif
+
+
  void BinCalibToolWidget::Calib_BaseFile_DataParse(FileBin_VarInfoType* node, uint32_t BaseFileIdx, FileBin_IntelHex_Memory *newFileBin)
  {
     uint32_t childIdx = 0;
-    //SymbolValIdx = 0;
-    QTreeWidget *tree = m_symbolTree;
 
-    for (int i = 0; i < this->BaseFileData.at(BaseFileIdx)->data.size(); i++)
+    if (!newFileBin || BaseFileIdx >= BaseFileData.size())
     {
-        if (!this->BaseFileData.at(BaseFileIdx)->data.at(i)->node)
+        std::cout << "ERROR, BinFile incorrect" << std::endl;
+        return;
+    }
+
+    const vector<SymbolDataType*> baseData = this->BaseFileData.at(BaseFileIdx)->data;
+
+    for (int i = 0; i < baseData.size(); i++)
+    {
+        if (!baseData.at(i)->node)
         {
             break;
         }
 
-        switch (this->BaseFileData.at(BaseFileIdx)->data.at(i)->node->DataType)
+        switch (baseData.at(i)->node->DataType)
         {
             case FileBin_VARINFO_TYPE_UINT8:
             {
-                WidgetTreeTextBox *lineedit = (WidgetTreeTextBox *)this->BaseFileData.at(BaseFileIdx)->data.at(i)->WidgetData;
-                lineedit->SetVal(QString::number(newFileBin->ReadMem_uint8(nullptr, 0, this->BaseFileData.at(BaseFileIdx)->data.at(i)->node->Addr)));
+                WidgetTreeTextBox *lineedit = (WidgetTreeTextBox *)baseData.at(i)->WidgetData;
+                lineedit->SetVal(QString::number(newFileBin->ReadMem_uint8(baseData.at(i)->node->Addr)));
                 break;
             }
             case FileBin_VARINFO_TYPE_SINT8:
             {
-                WidgetTreeTextBox *lineedit = (WidgetTreeTextBox *)this->BaseFileData.at(BaseFileIdx)->data.at(i)->WidgetData;
-                lineedit->SetVal(QString::number(newFileBin->ReadMem_sint8(nullptr, 0, this->BaseFileData.at(BaseFileIdx)->data.at(i)->node->Addr)));
+                WidgetTreeTextBox *lineedit = (WidgetTreeTextBox *)baseData.at(i)->WidgetData;
+                lineedit->SetVal(QString::number(newFileBin->ReadMem_sint8(baseData.at(i)->node->Addr)));
                 break;
             }
             case FileBin_VARINFO_TYPE_UINT16:
             {
-                WidgetTreeTextBox *lineedit = (WidgetTreeTextBox *)this->BaseFileData.at(BaseFileIdx)->data.at(i)->WidgetData;
-                lineedit->SetVal(QString::number(newFileBin->ReadMem_uint16(nullptr, 0, this->BaseFileData.at(BaseFileIdx)->data.at(i)->node->Addr)));
+                WidgetTreeTextBox *lineedit = (WidgetTreeTextBox *)baseData.at(i)->WidgetData;
+                lineedit->SetVal(QString::number(newFileBin->ReadMem_uint16(baseData.at(i)->node->Addr)));
                 break;
             }
             case FileBin_VARINFO_TYPE_SINT16:
             {
-                WidgetTreeTextBox *lineedit = (WidgetTreeTextBox *)this->BaseFileData.at(BaseFileIdx)->data.at(i)->WidgetData;
-                lineedit->SetVal(QString::number(newFileBin->ReadMem_sint16(nullptr, 0, this->BaseFileData.at(BaseFileIdx)->data.at(i)->node->Addr)));
+                WidgetTreeTextBox *lineedit = (WidgetTreeTextBox *)baseData.at(i)->WidgetData;
+                lineedit->SetVal(QString::number(newFileBin->ReadMem_sint16(baseData.at(i)->node->Addr)));
                 break;
             }
             case FileBin_VARINFO_TYPE_UINT32:
             {
-                WidgetTreeTextBox *lineedit = (WidgetTreeTextBox *)this->BaseFileData.at(BaseFileIdx)->data.at(i)->WidgetData;
-                lineedit->SetVal(QString::number(newFileBin->ReadMem_uint32(this->BaseFileData.at(BaseFileIdx)->data.at(i)->node->Addr)));
+                WidgetTreeTextBox *lineedit = (WidgetTreeTextBox *)baseData.at(i)->WidgetData;
+                lineedit->SetVal(QString::number(newFileBin->ReadMem_uint32(baseData.at(i)->node->Addr)));
                 break;
             }
             case FileBin_VARINFO_TYPE_SINT32:
             {
-                WidgetTreeTextBox *lineedit = (WidgetTreeTextBox *)this->BaseFileData.at(BaseFileIdx)->data.at(i)->WidgetData;
-                lineedit->SetVal(QString::number(newFileBin->ReadMem_sint32(nullptr, 0, this->BaseFileData.at(BaseFileIdx)->data.at(i)->node->Addr)));
+                WidgetTreeTextBox *lineedit = (WidgetTreeTextBox *)baseData.at(i)->WidgetData;
+                lineedit->SetVal(QString::number(newFileBin->ReadMem_sint32(baseData.at(i)->node->Addr)));
                 break;
             }
             case FileBin_VARINFO_TYPE_FLOAT32:
             {
-                WidgetTreeTextBox *lineedit = (WidgetTreeTextBox *)this->BaseFileData.at(BaseFileIdx)->data.at(i)->WidgetData;
-                lineedit->SetVal(QString::number(newFileBin->ReadMem_float32(nullptr, 0, this->BaseFileData.at(BaseFileIdx)->data.at(i)->node->Addr)));
+                WidgetTreeTextBox *lineedit = (WidgetTreeTextBox *)baseData.at(i)->WidgetData;
+                lineedit->SetVal(QString::number(newFileBin->ReadMem_float32(baseData.at(i)->node->Addr)));
                 break;
             }
             case FileBin_VARINFO_TYPE_ENUM:
             {
-                WidgetTreeComboBox *dataWidget = (WidgetTreeComboBox *)this->BaseFileData.at(BaseFileIdx)->data.at(i)->WidgetData;
-                dataWidget->setIdx(newFileBin->ReadMem_uint8(nullptr, 0, this->BaseFileData.at(BaseFileIdx)->data.at(i)->node->Addr));
+                WidgetTreeComboBox *dataWidget = (WidgetTreeComboBox *)baseData.at(i)->WidgetData;
+                dataWidget->setIdx(newFileBin->ReadMem_uint8(baseData.at(i)->node->Addr));
                 break;
             }
             default:
@@ -1025,6 +1215,166 @@ QTreeWidgetItem* BinCalibToolWidget::copyItemWithoutColumn(QTreeWidgetItem* item
     }
 }
 
+void BinCalibToolWidget::GenerateTable(uint8_t BaseFileIdx, FileBin_VarInfoType* node)
+{
+    uint32_t xLen = node->Size.at(0);
+    uint32_t yLen = 1;
+    uint8_t dataSize = node->Size.back();
+    vector<float> data;
+    vector<float> defaultData;
+
+    if (node->Size.size() > 2)
+    {
+        yLen = node->Size.at(1);
+    }
+
+    int rows = m_tableWidgetCalib->rowCount();
+    int cols = m_tableWidgetCalib->columnCount();
+
+    for (int row = 0; row < rows; ++row)
+    {
+        for (int col = 0; col < cols; ++col)
+        {
+            QWidget *widget = m_tableWidgetCalib->cellWidget(row, col);
+            if (widget)
+            {
+                m_tableWidgetCalib->removeCellWidget(row, col);
+                delete widget; // free memory
+            }
+        }
+    }
+
+    m_tableWidgetCalib->clear();
+    m_tableWidgetCalib->setRowCount(0);
+    m_tableWidgetCalib->setColumnCount(0);
+
+    switch (node->DataType)
+    {
+        case FileBin_VARINFO_TYPE_UINT8:
+        {
+            //WidgetTreeTextBox *lineedit = (WidgetTreeTextBox *)baseData.at(i)->WidgetData;
+            //lineedit->SetVal(QString::number(newFileBin->ReadMem_uint8(baseData.at(i)->node->Addr)));
+            break;
+        }
+        case FileBin_VARINFO_TYPE_SINT8:
+        {
+            //WidgetTreeTextBox *lineedit = (WidgetTreeTextBox *)baseData.at(i)->WidgetData;
+            //lineedit->SetVal(QString::number(newFileBin->ReadMem_sint8(baseData.at(i)->node->Addr)));
+            break;
+        }
+        case FileBin_VARINFO_TYPE_UINT16:
+        {
+            vector<uint8_t> defaultDataRaw = this->ELFData->readSymbolFromELF(node->Addr, xLen * yLen * 2);
+
+            // Convert every two bytes into uint16_t
+            for (size_t i = 0; i < xLen * yLen; i += 1)
+            {
+                uint16_t value  = this->BaseFileData.at(BaseFileIdx)->mem->ReadMem_uint16(node->Addr + i*2);
+                data.push_back(value);
+
+                value = defaultDataRaw.at(i*2) + (defaultDataRaw.at((i*2)+1) << 8);
+                defaultData.push_back(value);
+            }
+
+            break;
+        }
+        case FileBin_VARINFO_TYPE_SINT16:
+        {
+            vector<uint8_t> defaultDataRaw = this->ELFData->readSymbolFromELF(node->Addr, xLen * yLen * 2);
+
+            // Convert every two bytes into uint16_t
+            for (size_t i = 0; i < xLen * yLen; i += 1)
+            {
+                uint16_t value  = this->BaseFileData.at(BaseFileIdx)->mem->ReadMem_sint16(node->Addr + i*2);
+                data.push_back(value);
+
+                value = defaultDataRaw.at(i*2) + (defaultDataRaw.at((i*2)+1) << 8);
+                defaultData.push_back(value);
+            }
+
+            break;
+        }
+        case FileBin_VARINFO_TYPE_UINT32:
+        {
+           // WidgetTreeTextBox *lineedit = (WidgetTreeTextBox *)baseData.at(i)->WidgetData;
+            //lineedit->SetVal(QString::number(newFileBin->ReadMem_uint32(baseData.at(i)->node->Addr)));
+            break;
+        }
+        case FileBin_VARINFO_TYPE_SINT32:
+        {
+            //WidgetTreeTextBox *lineedit = (WidgetTreeTextBox *)baseData.at(i)->WidgetData;
+            //lineedit->SetVal(QString::number(newFileBin->ReadMem_sint32(baseData.at(i)->node->Addr)));
+            break;
+        }
+        case FileBin_VARINFO_TYPE_FLOAT32:
+        {
+           // WidgetTreeTextBox *lineedit = (WidgetTreeTextBox *)baseData.at(i)->WidgetData;
+            //lineedit->SetVal(QString::number(newFileBin->ReadMem_float32(baseData.at(i)->node->Addr)));
+            break;
+        }
+        default:
+        {
+            break;
+        }
+    }
+
+
+    // Set table dimensions first
+    m_tableWidgetCalib->setRowCount(yLen);
+    m_tableWidgetCalib->setColumnCount(xLen);
+
+    // Optional: set row heights and column widths
+    //for (uint32_t j = 0; j < yLen; j++) {
+    //    m_tableWidgetCalib->setRowHeight(j, 20);
+   // }
+   // for (uint32_t i = 0; i < xLen; i++) {
+   //     m_tableWidgetCalib->setColumnWidth(i, 60);
+    //}
+
+    // Populate cells
+    // Fill table
+    m_tableWidgetCalib->blockSignals(true);
+    for (int row = 0; row < yLen; ++row) {
+        for (int col = 0; col < xLen; ++col) {
+            QTableWidgetItem *item = new QTableWidgetItem(QString::number(data[row * xLen + col]));
+            item->setTextAlignment(Qt::AlignCenter);
+            item->setFlags(Qt::ItemIsSelectable | Qt::ItemIsEnabled | Qt::ItemIsEditable);
+            m_tableWidgetCalib->setItem(row, col, item);
+
+            if (data[row * xLen + col] != defaultData[row * xLen + col])
+            {
+                QFont font = item->font();
+                font.setBold(true);
+                item->setFont(font);
+            }
+        }
+    }
+    m_tableWidgetCalib->blockSignals(false);
+
+
+    disconnect(m_tableWidgetCalib, &QTableWidget::itemChanged, nullptr, nullptr);
+
+    connect(m_tableWidgetCalib, &QTableWidget::itemChanged,
+            this, [this, BaseFileIdx, node, dataSize, xLen](QTableWidgetItem *item){
+                int row = item->row();
+                int col = item->column();
+                size_t offset = (row * xLen + col) * dataSize;
+                uint16_t value = item->text().toUInt();
+                this->BaseFileData.at(BaseFileIdx)->mem->WriteMem_uint16(
+                    node->Addr + offset,
+                    value
+                    );
+
+                // Set bold if changed
+                QFont font = item->font();
+                font.setBold(true);
+                item->setFont(font);
+                //handleCellChange(row, col, newValue);
+
+            });
+
+}
+
 void BinCalibToolWidget::Calib_BaseFile_WidgetPopulate(FileBin_VarInfoType* node, QTreeWidgetItem* item, uint32_t BaseFileIdx)
 {
 
@@ -1047,6 +1397,12 @@ void BinCalibToolWidget::Calib_BaseFile_WidgetPopulate(FileBin_VarInfoType* node
                 {
                     dims << QString::number(node->Size[i]);
                 }
+
+                QObject::connect(widgetData, &WidgetTreeTextBox::clickedOrFocused, [this, node, BaseFileIdx]() {
+                    tableContainer->setVisible(true);        // show table + toolbar
+                    rightSplitter->setSizes({300, 200});     // optional: restore splitter sizes
+                    this->GenerateTable(BaseFileIdx, node);
+                });
 
                 widgetData->setText("<" + dims.join(" x ") + ">");
 
@@ -1247,7 +1603,6 @@ void BinCalibToolWidget::Calib_BaseFile_WidgetPopulate(FileBin_VarInfoType* node
                     }
 
                     WidgetTreeTextBox *widgetData = new WidgetTreeTextBox(this, false, 0, BaseFileIdx, BaseFileData.at(BaseFileIdx)->data.size(), value);
-
 
                     tree->setItemWidget(item->child(childIdx), 4+BaseFileIdx, widgetData);
 

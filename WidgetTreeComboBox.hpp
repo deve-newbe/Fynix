@@ -66,7 +66,6 @@ class WidgetTreeComboBox : public QComboBox
 
     public:
 
-        int Int1, Int2;
         uint32_t DefaultValIdx;
         bool isDummy, TriggerDataChange;
 

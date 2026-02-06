@@ -150,7 +150,7 @@ bool FileBin_IntelHex_Memory::GetMemPageOffset(uint32_t *pPage, uint32_t *pOffse
 
 }
 
-uint8_t FileBin_IntelHex_Memory::ReadMem_uint8(uint8_t *buffer, uint32_t Length, uint32_t Address)
+uint8_t FileBin_IntelHex_Memory::ReadMem_uint8(uint32_t Address)
 {
     uint8_t fBuf[64];
     uint32_t Page, Offset;
@@ -171,7 +171,7 @@ uint8_t FileBin_IntelHex_Memory::ReadMem_uint8(uint8_t *buffer, uint32_t Length,
     return 0;
 }
 
-int8_t FileBin_IntelHex_Memory::ReadMem_sint8(uint8_t *buffer, uint32_t Length, uint32_t Address)
+int8_t FileBin_IntelHex_Memory::ReadMem_sint8(uint32_t Address)
 {
     uint8_t fBuf[64];
     uint32_t Page, Offset;
@@ -192,7 +192,7 @@ int8_t FileBin_IntelHex_Memory::ReadMem_sint8(uint8_t *buffer, uint32_t Length, 
     return 0;
 }
 
-uint16_t FileBin_IntelHex_Memory::ReadMem_uint16(uint8_t *buffer, uint32_t Length, uint32_t Address)
+uint16_t FileBin_IntelHex_Memory::ReadMem_uint16(uint32_t Address)
 {
 
     uint8_t fBuf[64];
@@ -217,7 +217,7 @@ uint16_t FileBin_IntelHex_Memory::ReadMem_uint16(uint8_t *buffer, uint32_t Lengt
 
 }
 
-int16_t FileBin_IntelHex_Memory::ReadMem_sint16(uint8_t *buffer, uint32_t Length, uint32_t Address)
+int16_t FileBin_IntelHex_Memory::ReadMem_sint16(uint32_t Address)
 {
     uint8_t fBuf[64];
     uint32_t Page, Offset;
@@ -265,7 +265,7 @@ uint32_t FileBin_IntelHex_Memory::ReadMem_uint32(uint32_t Address)
     return 0;
 }
 
-int32_t FileBin_IntelHex_Memory::ReadMem_sint32(uint8_t *buffer, uint32_t Length, uint32_t Address)
+int32_t FileBin_IntelHex_Memory::ReadMem_sint32(uint32_t Address)
 {
     uint8_t fBuf[64];
     uint32_t Page, Offset;
@@ -290,7 +290,7 @@ int32_t FileBin_IntelHex_Memory::ReadMem_sint32(uint8_t *buffer, uint32_t Length
     return 0;
 }
 
-float FileBin_IntelHex_Memory::ReadMem_float32(uint8_t *buffer, uint32_t Length, uint32_t Address)
+float FileBin_IntelHex_Memory::ReadMem_float32(uint32_t Address)
 {
     uint32_t Page, Offset;
 
@@ -386,7 +386,9 @@ void FileBin_IntelHex_Memory::WriteMem_uint16(uint32_t Address, uint16_t value)
         }
 
         this->Page.at(Page).Byte.at(Offset) = value & 0xFF;
-        this->Page.at(Page).Byte.at(Offset+1) =(value >> 8u) & 0xFF;;
+        this->Page.at(Page).Byte.at(Offset+1) =(value >> 8u) & 0xFF;
+
+        std::cout << "writing memory 0x" << std::hex << (int)Address << " value " << value << std::endl;
     }
 
 }
